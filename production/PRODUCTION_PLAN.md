@@ -28,11 +28,10 @@ The final video is `out/gta6_10_details_FINAL.mp4`, built only from the real GTA
   - In the first seconds of some clips, a small ESRB rating badge sits in a corner. Those shots are zoomed and reframed so it's out of frame.
 - **Camera.** Every shot moves (push-in, pull-out, pan, crash zoom, handheld), and each cut inside a detail gets a 10% punch-in.
   - Transitions between details: smooth whip, zoom, white flash, pixel glitch, radial spin, light leak.
-- **Graphics** (`video/overlay.py`): **no subtitles**, only decorative elements synced to the voice.
-  - Glowing pink/orange counter and big "#1"–"#10" on each spoken number.
-  - Short labels: DID YOU KNOW?, 10 CRAZY DETAILS, DRIVE-BY MODE, SECRET SAFE, WHO'S YOUR MAIN?…
-  - LUCIA / JASON tags with pulsing rings, phone notifications (missed call / new message), a relationship meter, and wanted stars on police moments.
-  - +$ money pops, gaming icons with arrows, a radar minimap, glowing particles, and a light sweep on every transition.
+- **Graphics** (`video/overlay.py`): **no text on screen at all**, apart from the small counter.
+  - Small circular pink/orange counter at the top centre (0/10 → 10/10) with progress dots and a soft ring pulse on each spoken number.
+  - Small floating gaming icons (about 86 px, two at most at a time, either side of the centre) appear on the matching words. Icons: phone, car, gun, eye, heart, cash, police, location, flame, share.
+  - Thin glowing rings on characters (Lucia / Jason), small wanted stars on police moments, a compact radar, faint particles, and a soft light sweep on transitions.
 - **Clean footage only.** Banned source ranges (logos, PRE-LOAD NOW, PS5 splash, end cards) are listed in `timeline.py`. Any shot touching them, transitions included, is refused.
 - **Audio.** Your voice-over is level-controlled. The synthwave bed sits low at 30% and is ducked further whenever you speak. Subtle SFX: whoosh, ding, impact, cash, riser.
 

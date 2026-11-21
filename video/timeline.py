@@ -268,7 +268,38 @@ def _fx():
     add(at("commentaire.", f), "icon", 1.8, name="comment")
     add(at("Envoie", f), "icon", 1.9, name="share")
     add(at("abonne-toi", f), "label", 2.3, text="FOLLOW FOR MORE", icon="controller")
-    return sorted(fx, key=lambda e: e["t"])
+    return _minimal(sorted(fx, key=lambda e: e["t"]))
+
+
+def _minimal(fx):
+    """Text-free version: every element becomes a small icon, ping, pulse or star row. No words on screen."""
+    out = []
+    for e in fx:
+        k = e["kind"]
+        if k == "bignum":
+            out.append(dict(t=e["t"], kind="pulse", dur=0.9))
+        elif k == "label":
+            out.append(dict(t=e["t"], kind="icon", dur=min(e["dur"], 2.0), name=e.get("icon") or "eye"))
+        elif k == "tag":
+            out.append(dict(t=e["t"], kind="ping", dur=min(e["dur"], 1.6), x=e["x"], y=e["y"]))
+        elif k == "notif":
+            out.append(dict(t=e["t"], kind="icon", dur=min(e["dur"], 2.0), name="comment"))
+        elif k == "meter":
+            out.append(dict(t=e["t"], kind="icon", dur=2.0, name="heart"))
+        elif k == "money":
+            out.append(dict(t=e["t"], kind="icon", dur=1.6, name="cash"))
+        else:
+            out.append(dict(e))
+    out.sort(key=lambda e: e["t"])
+    # at most 2 icons at once, never the same icon twice at the same time
+    kept = []
+    for e in out:
+        if e["kind"] == "icon":
+            live = [k for k in kept if k["kind"] == "icon" and k["t"] <= e["t"] < k["t"] + k["dur"]]
+            if len(live) >= 2 or any(k["name"] == e["name"] for k in live):
+                continue
+        kept.append(e)
+    return kept
 
 
 FX = _fx()
