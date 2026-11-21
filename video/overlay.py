@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 sys.path.insert(0, os.path.dirname(__file__))
-from timeline import SEGMENTS, FPS, W, H, DURATION, all_shots, all_captions  # noqa: E402
+from timeline import SEGMENTS, FPS, W, H, DURATION, all_shots, all_captions, PILL_TEXT, TITLE_LABEL  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -147,6 +147,61 @@ def caption_sprite(text, hl, size=134, color_hl=YELLOW, gold=False):
     else:
         g = gradient_img(Wd, Ht, np.array(color_hl, float), np.array([255, 170, 40.]))
     sprite.paste(g, (0, 0), fill_hl)
+    return Image.alpha_composite(sh, sprite)
+
+
+@lru_cache(256)
+def word_caption_sprite(words, revealed, active, size=128):
+    """words: tuple of strings. Draw the first `revealed` words; `active` gets the yellow gradient + scale."""
+    f = font(F_ANTON, size)
+    big = len(words) == 1 and words[0].startswith("#")
+    if big:
+        f = font(F_ANTON, 230)
+    stroke = max(8, f.size // 10)
+    space = f.getlength(" ")
+    maxw = 960
+    widths = [f.getlength(w) for w in words]
+
+    def line_w(ix):
+        return sum(widths[i] for i in ix) + space * (len(ix) - 1)
+
+    lines = [list(range(len(words)))]
+    if line_w(lines[0]) > maxw and len(words) > 1:
+        best = min(range(1, len(words)), key=lambda k: max(line_w(range(k)), line_w(range(k, len(words)))))
+        lines = [list(range(best)), list(range(best, len(words)))]
+    while max(line_w(l) for l in lines) > maxw:
+        f = font(F_ANTON, f.size - 6)
+        stroke = max(8, f.size // 10)
+        space = f.getlength(" ")
+        widths = [f.getlength(w) for w in words]
+    asc, desc = f.getmetrics()
+    lh = int((asc + desc) * 0.98)
+    pad = stroke + 34
+    Wd = int(max(line_w(l) for l in lines) + pad * 2)
+    Ht = int(lh * len(lines) + pad * 2)
+    sprite = Image.new("RGBA", (Wd, Ht), (0, 0, 0, 0))
+    shadow = Image.new("L", (Wd, Ht), 0)
+    hlmask = Image.new("L", (Wd, Ht), 0)
+    d, ds, dh = ImageDraw.Draw(sprite), ImageDraw.Draw(shadow), ImageDraw.Draw(hlmask)
+    y = pad
+    for line in lines:
+        x = (Wd - line_w(line)) / 2
+        for i in line:
+            if i < revealed:
+                w = words[i]
+                ds.text((x, y + 12), w, font=f, fill=255, stroke_width=stroke, stroke_fill=255)
+                d.text((x, y), w, font=f, fill=(255, 255, 255, 255), stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
+                if i == active or big:
+                    dh.text((x, y), w, font=f, fill=255)
+            x += widths[i] + space
+        y += lh
+    sh = Image.new("RGBA", (Wd, Ht), (0, 0, 0, 0))
+    sh.putalpha(shadow.filter(ImageFilter.GaussianBlur(10)).point(lambda v: int(v * 0.7)))
+    if big:
+        g = gradient_img(Wd, Ht, PINK, ORANGE)
+    else:
+        g = gradient_img(Wd, Ht, np.array(YELLOW, float), np.array([255, 170, 40.]))
+    sprite.paste(g, (0, 0), hlmask)
     return Image.alpha_composite(sh, sprite)
 
 
@@ -344,7 +399,7 @@ def counter_sprite(n, progress, t, pop):
     cx = RC / 2
     if n == 0:
         d.text((cx, cx - 14), "10", font=font(F_ANTON, 84), fill="white", anchor="mm", stroke_width=4, stroke_fill="black")
-        d.text((cx, cx + 46), "DETAILS", font=font(F_MONT, 20), fill=(255, 190, 120), anchor="mm")
+        d.text((cx, cx + 46), TITLE_LABEL, font=font(F_MONT, 20), fill=(255, 190, 120), anchor="mm")
     else:
         big = font(F_ANTON, 92 if n < 10 else 80)
         small = font(F_ANTON, 40)
@@ -361,7 +416,7 @@ def counter_sprite(n, progress, t, pop):
 
 @lru_cache(None)
 def pill_sprite():
-    text = "CRAZY DETAILS YOU MISSED IN GTA 6"
+    text = PILL_TEXT
     f = font(F_MONT, 30)
     w = int(f.getlength(text)) + 70
     h = 62
@@ -476,16 +531,24 @@ def render_overlay(t):
     cap = next((c for c in CAPS if c["start"] <= t < c["end"]), None)
     if cap:
         age = t - cap["start"]
-        hl = tuple(w for w in cap["text"].split(" ") if w in cap["hl"])
-        sp = caption_sprite(cap["text"], hl, 134)
-        if age < 0.09:
-            s = 0.55 + 0.6 * ease_out(age / 0.09)
-        elif age < 0.2:
-            s = 1.15 - 0.15 * ease_in_out((age - 0.09) / 0.11)
+        words = tuple(w for w, _, _ in cap["words"])
+        revealed = max(1, sum(1 for _, ws, _ in cap["words"] if ws <= t + 0.03))
+        active = max(i for i, (_, ws, _) in enumerate(cap["words"]) if ws <= t + 0.03) if revealed else 0
+        if t > cap["words"][-1][2] + 0.15:
+            active = -1
+        sp = word_caption_sprite(words, revealed, active)
+        if age < 0.08:
+            s = 0.6 + 0.55 * ease_out(age / 0.08)
+        elif age < 0.18:
+            s = 1.15 - 0.15 * ease_in_out((age - 0.08) / 0.10)
         else:
-            s = 1.0 + 0.012 * math.sin(age * 4)
-        rot = -3 * (1 - ease_out(age / 0.2))
-        y = 1020 - 30 * (1 - ease_out(age / 0.2))
+            s = 1.0
+        # tiny bump on every new word
+        wa = t - cap["words"][min(max(active, 0), len(words) - 1)][1]
+        if 0 <= wa < 0.1 and age >= 0.18:
+            s *= 1 + 0.04 * (1 - wa / 0.1)
+        rot = -3 * (1 - ease_out(age / 0.18))
+        y = 1060 - 26 * (1 - ease_out(age / 0.18))
         paste_center(canvas, scaled(sp, s, rot), W / 2, y)
 
     draw_icons(canvas, seg, t)

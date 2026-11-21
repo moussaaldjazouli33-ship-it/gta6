@@ -1,19 +1,19 @@
-# GTA 6 TikTok: "10 CRAZY DETAILS YOU MISSED IN GTA 6"
+# GTA 6 TikTok edit: "10 DÉTAILS QUE PERSONNE NE CONNAÎT"
 
-A 68-second vertical (1080×1920) edit built **only from real GTA 6 gameplay you capture**. It has:
-- an animated pink/orange circular counter
-- big outlined subtitles
-- camera moves and transitions
-- music and SFX
+A 69.6 s vertical (1080×1920) TikTok, edited from **real GTA 6 footage** and a French voice-over.
 
-1. Capture the clips in [`production/CLIPS_NEEDED.md`](production/CLIPS_NEEDED.md) and save them in `footage/`.
-2. Optionally, record the voice-over: [`production/voiceover_script.txt`](production/voiceover_script.txt).
-3. Run the editor:
+What the code does:
+- Syncs the subtitles word by word to the voice (Whisper word timestamps).
+- Puts a glowing pink/orange circular counter at the top that pops on each spoken number.
+- Moves the camera in every shot, with transitions between details.
+- Adds icons, music and SFX.
 
 ```bash
-pip install numpy pillow scipy           # ffmpeg required
-python video/assemble.py --check         # what's missing
-python video/assemble.py --vo vo.wav     # -> out/gta6_crazy_details_FINAL.mp4
+pip install numpy pillow scipy        # ffmpeg required
+# footage/c1..c5.mp4 + footage/voiceover.mp3 (not committed)
+python video/audio.py out/soundtrack.wav
+python video/overlay.py               # graphics layer with alpha
+python video/assemble.py              # -> out/gta6_10_details_FINAL.mp4
 ```
 
-Script, specs and posting kit: [`production/PRODUCTION_PLAN.md`](production/PRODUCTION_PLAN.md). Everything is driven by [`video/timeline.py`](video/timeline.py). After editing it, run `python video/overlay.py` and `python video/export_docs.py`.
+See [`production/PRODUCTION_PLAN.md`](production/PRODUCTION_PLAN.md). The edit is defined in [`video/timeline.py`](video/timeline.py).

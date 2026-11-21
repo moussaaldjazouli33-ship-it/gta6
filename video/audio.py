@@ -285,8 +285,7 @@ def build_music(total):
     K, C, Ho, Hc = kick(), clap(), hat(True), hat(False)
 
     # sections: (start, end, drums_on, filter_closed)
-    hook = next(s for s in SEGMENTS if s["id"] == "hook")
-    drums_from = max(at for at, n in hook["sfx"] if n == "boom")   # drop on the hook punchline
+    drums_from = next(s for s in SEGMENTS if s["counter"] is not None)["start"]   # beat drops on the title
     f10 = next(s for s in SEGMENTS if s["counter"] == 10)
     break_start, break_end = f10["start"] - 1.0, f10["start"]     # silence-ish before #10
     end_fade = total - 2.0
