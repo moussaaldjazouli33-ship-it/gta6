@@ -55,50 +55,51 @@ for i, (sid, counter, tr) in enumerate(_meta):
 # 61.07-62.53 crew | 62.53-63.40 Lucia sunset | 63.40-64.23 tail lights | 64.23-65.9 gun | 66.43-67.90 balcony couple |
 # 67.90-69.30 skyscraper | 71.43-72.13 Jason gun | 72.17-73.17 Lucia shooting
 SHOT_LIST = [
-    (0.00, "t1", 11.30, "push_in", ""),          # Jason on the phone (broke)
-    (2.20, "t1", 25.80, "push_in", ""),          # Lucia + Jason convertible
-    (3.60, "t1", 52.36, "crash_zoom", ""),       # explosion
-    (4.78, "t1", 4.45, "pull_out", "x=0.5"),     # marina aerial
-    (6.52, "t1", 6.40, "push_in", "x=0.82"),           # Jason working on the boat
-    (8.70, "t1", 61.10, "hold", ""),             # crew at night
-    (10.10, "t1", 72.20, "crash_zoom", "x=0.36"),      # Lucia shooting (braque)
-    (11.05, "t1", 71.45, "handheld", "x=0.68"),        # Jason with gun
-    (11.70, "t1", 41.75, "push_in", ""),         # neon reach
-    (12.08, "t1", 18.40, "push_in", "x=0.45"),   # lowrider (stolen car)
-    (14.00, "t2", 23.00, "handheld", "subsafe x=0.55"),   # driving at night (breakdown)
-    (15.50, "t1", 46.40, "crash_zoom", "x=0.45 fixed"),        # police chase
-    (16.54, "t1", 69.35, "push_in", "x=0.5"),    # night city aerial (EV)
-    (17.30, "t1", 32.18, "hold", "x=0.3"),            # Jason driving
-    (18.10, "t1", 38.40, "pull_out", "x=0.5"),   # plane / bike
-    (18.92, "t2", 12.40, "push_in", "subsafe x=0.5"),  # Lucia breaking into a car
-    (20.70, "t2", 14.90, "push_in", "subsafe"),  # Lucia inside (lockpick)
-    (22.20, "t1", 27.25, "hold", "x=0.5"),       # swamp crew at sunset
-    (23.38, "t1", 35.90, "push_in", ""),         # bedroom (nuits blanches)
-    (24.80, "t1", 57.90, "pull_out", "x=0.65"),        # wrecked on the couch
-    (26.15, "t2", 190.00, "push_in", "subsafe"), # apartment, Lucia
-    (27.60, "t2", 194.00, "hold", "subsafe"),    # couch
-    (29.34, "t1", 56.45, "push_in", ""),         # gym (muscu)
-    (30.74, "t1", 62.55, "push_in", ""),         # Lucia sunset (cardio)
-    (31.60, "t2", 161.80, "pull_out", "x=0.55"), # beach walk
-    (33.40, "t1", 67.95, "crash_zoom", "x=0.5"), # skyscraper
-    (34.25, "t1", 37.40, "handheld", "x=0.36"),        # red room ("et attends")
-    (35.28, "t1", 34.45, "push_in", "x=0.5"),         # Lucia at the vault door (focus)
-    (36.65, "t1", 53.90, "crash_zoom", "x=0.5"), # laser
-    (37.25, "t1", 28.80, "push_in", "x=0.6"),         # red light (red door)
-    (38.10, "t1", 64.30, "hold", "x=0.55"),            # gun in the teal room
-    (39.60, "t1", 60.25, "handheld", "x=0.42"),        # firefight (braquage)
-    (40.46, "t1", 2.10, "push_in", "x=0.75"),     # street (dogs)
-    (41.90, "t1", 54.60, "pull_out", "x=0.5"),   # beach crowd
-    (43.38, "t2", 39.20, "push_in", "subsafe"),  # hands up, police
-    (45.00, "t2", 41.60, "crash_zoom", "subsafe"),
-    (46.42, "t1", 20.55, "push_in", "x=0.5"),    # iguana (gross)
-    (47.50, "t1", 13.60, "hold", ""),            # dock
-    (48.40, "t2", 170.10, "push_in", "subsafe"), # bar crowd (throw at people)
-    (50.00, "t1", 59.30, "handheld", "x=0.45"),        # club
-    (50.82, "t1", 39.85, "push_in", ""),         # Jason + Lucia by the car
-    (52.60, "t1", 66.50, "pull_out", "x=0.6"),        # balcony couple
-    (53.95, "t2", 124.00, "push_in", "subsafe"), # Jason close-up
-    (55.50, "t2", 128.00, "push_in", "subsafe"), # Lucia close-up
+    # framing: x = subject centre, w = visible width (<=0.33 full crop, wider = extended background)
+    (0.00, "t1", 11.30, "push_in", "x=0.62 track"),           # Jason on the phone (broke)
+    (2.20, "t1", 25.80, "push_in", "x=0.42 w=0.64"),          # Lucia + Jason convertible (both)
+    (3.60, "t1", 52.36, "crash_zoom", "x=0.55"),              # gunman + explosion
+    (4.78, "t1", 4.45, "pull_out", "x=0.50 w=0.60"),          # marina aerial
+    (6.52, "t1", 6.40, "push_in", "x=0.58 w=0.82"),           # Jason polishing (hands + face)
+    (8.70, "t1", 61.10, "hold", "x=0.45 w=0.70"),             # crew at night (3 people)
+    (10.10, "t1", 72.20, "crash_zoom", "x=0.32 w=0.50"),      # Lucia shooting (moving right)
+    (11.05, "t1", 71.45, "handheld", "x=0.50 w=0.65"),        # Jason sniper (face + rifle)
+    (11.70, "t1", 41.75, "push_in", "x=0.45"),                # neon reach
+    (12.08, "t1", 18.40, "push_in", "x=0.55 w=0.50"),         # lowrider (3 people)
+    (14.00, "t2", 23.50, "handheld", "subsafe x=0.55"),       # driving at night
+    (15.50, "t1", 46.60, "crash_zoom", "x=0.55 w=0.60"),      # police chase street
+    (16.54, "t1", 69.35, "push_in", "x=0.45"),                # helicopter over the city at night
+    (17.30, "t1", 32.18, "hold", "x=0.35"),                   # Jason driving
+    (18.10, "t1", 38.40, "pull_out", "x=0.40 w=0.50"),        # plane / bike
+    (18.92, "t2", 12.40, "push_in", "subsafe x=0.55"),        # Lucia breaking into a car
+    (20.70, "t2", 14.90, "push_in", "subsafe x=0.56 track"),  # Lucia inside (lockpick)
+    (22.20, "t1", 27.25, "hold", "x=0.50 w=0.55"),            # swamp crew at sunset
+    (23.38, "t1", 35.90, "push_in", "x=0.36 w=0.72"),         # bedroom couple (both)
+    (24.80, "t1", 57.90, "pull_out", "x=0.65 w=0.50"),        # wrecked on the couch
+    (26.15, "t2", 190.00, "push_in", "subsafe x=0.62 track"), # apartment, Lucia
+    (27.60, "t2", 194.00, "hold", "subsafe x=0.58 w=0.45"),   # couch couple (both)
+    (29.34, "t1", 56.45, "push_in", "x=0.48 track"),          # gym (muscu)
+    (30.74, "t1", 62.55, "push_in", "x=0.50 track"),          # Lucia sunset (cardio)
+    (31.60, "t2", 161.80, "pull_out", "subsafe x=0.45 w=0.45"),  # beach walk (both)
+    (33.40, "t1", 67.95, "crash_zoom", "x=0.55"),             # skyscraper
+    (34.54, "t1", 37.38, "handheld", "x=0.55"),               # red room ("et attends")
+    (35.28, "t1", 34.45, "push_in", "x=0.45"),                # Lucia at the vault door (focus)
+    (36.65, "t1", 53.90, "crash_zoom", "x=0.50"),             # laser
+    (37.25, "t1", 28.80, "push_in", "x=0.58"),                # Jason in red light (red door)
+    (38.10, "t1", 64.30, "hold", "x=0.50 w=0.55"),            # gun in the teal room (arm + man)
+    (39.60, "t1", 60.25, "handheld", "x=0.50 w=0.50"),        # firefight (braquage)
+    (40.46, "t1", 2.10, "push_in", "x=0.50 w=0.60"),          # truck towing a boat, billboard
+    (41.90, "t1", 54.60, "pull_out", "x=0.50 w=0.60"),        # beach crowd + plane
+    (43.38, "t2", 39.20, "push_in", "subsafe x=0.42 w=0.50"), # hands up, police (both)
+    (45.00, "t2", 41.60, "crash_zoom", "subsafe x=0.40 w=0.65"),  # closer (both)
+    (46.42, "t1", 20.55, "push_in", "x=0.45"),                # iguana (gross)
+    (47.50, "t1", 13.60, "hold", "x=0.42 w=0.60"),            # dock + seaplane
+    (48.40, "t2", 170.10, "push_in", "subsafe x=0.25"),       # bar crowd
+    (50.00, "t1", 59.30, "handheld", "x=0.50 w=0.45"),        # club (two dancers)
+    (50.82, "t1", 39.85, "push_in", "x=0.37 w=0.55"),         # Jason + Lucia by the car (both)
+    (52.60, "t1", 66.50, "pull_out", "x=0.45 w=0.55"),        # balcony couple (both)
+    (53.95, "t2", 124.00, "push_in", "subsafe x=0.52 track"), # Jason close-up
+    (55.50, "t2", 128.00, "push_in", "subsafe x=0.48 track"), # Lucia close-up
 ]
 
 # Logos, title cards, "ROCKSTAR GAMES PRESENTS", credits overlays, animal credit cards, end cards.
@@ -120,13 +121,15 @@ def all_shots():
         for b0, b1 in BANNED[src]:
             if sin < b1 and src_out > b0:
                 raise ValueError(f"shot {i + 1} uses {src} {sin:.2f}-{src_out:.2f}s, overlapping banned {b0}-{b1}")
-        hint = 0.5
+        cx, w = 0.5, 0.32
         for o in opts.split():
             if o.startswith("x="):
-                hint = float(o[2:])
+                cx = float(o[2:])
+            if o.startswith("w="):
+                w = float(o[2:])
         out.append(dict(id=f"s{i + 1:02d}", seg=seg["id"], start=t0, end=t1, src=src, src_in=sin, cam=cam,
-                        flip=False, badge=False, reframe=True, subsafe="subsafe" in opts, hint=hint,
-                        fixed="fixed" in opts))
+                        flip=False, badge=False, reframe=True, subsafe="subsafe" in opts, cx=cx, w=w,
+                        track="track" in opts))
     return out
 
 

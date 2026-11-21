@@ -650,6 +650,8 @@ def main():
     ap.add_argument("--bg", help="video to composite under --still (e.g. out/bg_cut.mp4)")
     ap.add_argument("--out")
     ap.add_argument("-j", type=int, default=os.cpu_count())
+    ap.add_argument("--start", type=float, default=0.0)
+    ap.add_argument("--end", type=float, default=None)
     a = ap.parse_args()
     os.makedirs(os.path.join(ROOT, "out"), exist_ok=True)
     if a.still is not None:
@@ -669,9 +671,10 @@ def main():
            "-r", str(FPS), "-i", "-", "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le",
            "-vendor", "apl0", out]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-    n = int(round(DURATION * FPS))
+    f0 = int(round(a.start * FPS))
+    n = int(round((a.end if a.end is not None else DURATION) * FPS))
     with Pool(a.j) as pool:
-        for k, data in enumerate(pool.imap(make_frame, range(n), chunksize=8)):
+        for k, data in enumerate(pool.imap(make_frame, range(f0, n), chunksize=8)):
             proc.stdin.write(data)
             if k % 300 == 0:
                 print(f"{k}/{n}", flush=True)

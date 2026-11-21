@@ -1,23 +1,25 @@
 """
-Intelligent 16:9 -> 9:16 reframing for one shot.
+Quality-first 16:9 -> 9:16 reframing for one shot.
 
-1. Decode the shot's source frames (1280x720).
-2. Detect faces every 2nd frame (OpenCV Haar: frontal + left/right profile,
-   on a histogram-equalised 640x360 copy). No external model download.
-3. Pick the subject per sample: the face that best continues the previous
-   target (size x proximity), or the midpoint of two faces when both fit in
-   the vertical window. Samples with no face hold the last target, and a shot
-   with no face at all uses its framing hint.
-4. Smooth the path (median, then Gaussian, then a speed limit) so the virtual
-   camera glides instead of jumping.
-5. Render each frame with a sub-pixel affine crop (bicubic) to 1080x1920,
-   plus the shot's camera move (push-in, pull-out, crash zoom, handheld),
-   then a light unsharp mask. Never stretched, never letterboxed.
+Framing (per shot, set by the editor after reviewing every shot, see projects/p2.py):
+  cx  horizontal centre of the subject (0..1 of the source width)
+  w   width of the source that must stay visible (0..1). Faces, bodies, both
+      characters of a two-shot, or the main action.
+      w <= 0.33 -> FULL CROP: a 9:16 window of the full source height.
+      w  > 0.33 -> EXTENDED: that wider window is shown sharp in the middle of
+                   the frame over a cinematic blurred extension of the same shot,
+                   so nothing important is cut and nothing is over-zoomed.
+  track       -> body + face tracking (OpenCV HOG people detector + Haar faces)
+                 may refine cx by up to +/-6 % when it finds the subject reliably.
 
-"subsafe" shots use only the top 87 % of the frame, so burned-in dialogue
-subtitles at the bottom of the source stay out of the picture.
+Image chain: ffmpeg decode with light temporal denoise (hqdn3d) -> sub-pixel
+bicubic crop -> ESRGAN-slim x2 super-resolution (ONNX, CPU) -> gentle unsharp.
+Camera moves are kept small (max ~4 % zoom) to avoid soft, pixelated faces.
+"subsafe" (t2) drops the bottom 13 % (burned-in dialogue subtitles) and, for
+wide windows, the top 5 % (channel watermark).
 """
 import math
+import os
 import subprocess
 
 import cv2
@@ -27,119 +29,167 @@ from PIL import Image, ImageFilter
 SW, SH = 1280, 720
 W, H = 1080, 1920
 FPS = 30
+HERE = os.path.dirname(os.path.abspath(__file__))
+SR_MODEL = os.path.join(HERE, "models", "esrgan_slim_x2.onnx")
 cv2.setNumThreads(1)
 _FRONT = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 _PROF = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_profileface.xml")
+_HOG = cv2.HOGDescriptor()
+_HOG.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+_SESS = None
+
+
+def _sr(img):
+    """ESRGAN-slim x2 on an RGB uint8 PIL image."""
+    global _SESS
+    if _SESS is None:
+        import onnxruntime as ort
+        so = ort.SessionOptions()
+        so.intra_op_num_threads = 1
+        _SESS = ort.InferenceSession(SR_MODEL, so, providers=["CPUExecutionProvider"])
+    x = np.asarray(img, np.float32).transpose(2, 0, 1)[None]
+    y = _SESS.run(None, {"input": x})[0][0].transpose(1, 2, 0)
+    return Image.fromarray(np.clip(y + 0.5, 0, 255).astype(np.uint8))
 
 
 def decode(path, start, n):
     raw = subprocess.check_output(["ffmpeg", "-loglevel", "error", "-ss", f"{start}", "-i", path, "-frames:v", str(n),
-                                   "-vf", f"fps={FPS},scale={SW}:{SH}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+                                   "-vf", f"fps={FPS},scale={SW}:{SH},hqdn3d=1.5:1.2:4:3", "-f", "rawvideo",
+                                   "-pix_fmt", "rgb24", "-"])
     frames = np.frombuffer(raw, np.uint8).reshape(-1, SH, SW, 3)
     if len(frames) < n:
         raise RuntimeError(f"{path}: only {len(frames)} of {n} frames from {start}s")
     return frames
 
 
-def _faces(rgb, max_y):
-    g = cv2.equalizeHist(cv2.cvtColor(cv2.resize(rgb, (640, 360)), cv2.COLOR_RGB2GRAY))
-    boxes = []
-    for b in _FRONT.detectMultiScale(g, 1.1, 6, minSize=(30, 30)):
-        boxes.append(tuple(int(v) for v in b))
-    for b in _PROF.detectMultiScale(g, 1.1, 6, minSize=(30, 30)):
-        boxes.append(tuple(int(v) for v in b))
-    for x, y, w, h in _PROF.detectMultiScale(cv2.flip(g, 1), 1.1, 6, minSize=(30, 30)):
-        boxes.append((int(640 - x - w), int(y), int(w), int(h)))
+def _subjects(rgb, max_y):
+    """Centres (x, weight) of faces and full bodies, at source scale."""
+    small = cv2.resize(rgb, (640, 360))
+    g = cv2.equalizeHist(cv2.cvtColor(small, cv2.COLOR_RGB2GRAY))
     out = []
-    for x, y, w, h in sorted(boxes, key=lambda b: -b[2]):      # merge overlaps
-        cx, cy = (x + w / 2) * 2, (y + h / 2) * 2
-        if cy > max_y:
-            continue
-        if any(abs(cx - o[0]) < max(w, o[2] / 2) and abs(cy - o[1]) < max(h, o[2] / 2) for o in out):
-            continue
-        out.append((cx, cy, w * 2))
+    for det, flip in ((_FRONT, False), (_PROF, False), (_PROF, True)):
+        gg = cv2.flip(g, 1) if flip else g
+        for x, y, w, h in det.detectMultiScale(gg, 1.1, 6, minSize=(30, 30)):
+            if flip:
+                x = 640 - x - w
+            if (y + h / 2) * 2 < max_y:
+                out.append(((x + w / 2) * 2, w * 2 * 1.5))
+    bodies, _ = _HOG.detectMultiScale(cv2.cvtColor(small, cv2.COLOR_RGB2GRAY), winStride=(8, 8), padding=(8, 8), scale=1.06)
+    for x, y, w, h in bodies:
+        out.append(((x + w / 2) * 2, w * 2))
     return out
 
 
-def track(frames, hint, win_w, max_y):
-    n = len(frames)
-    step = 2
-    xs, have = [], []
-    prev = None
+def refine(frames, cx_px, max_y):
+    """Track faces + bodies near the editor's centre; return a smooth path (or None if unreliable)."""
+    n, step = len(frames), 3
+    lim = 0.06 * SW
+    xs, hits = [], 0
     for i in range(0, n, step):
-        faces = _faces(frames[i], max_y)
-        if faces:
-            if prev is None:
-                pick = max(faces, key=lambda f: f[2] * math.exp(-((f[0] - hint * SW) / 500) ** 2))
-            else:
-                pick = max(faces, key=lambda f: f[2] * math.exp(-((f[0] - prev) / 220) ** 2))
-            x = pick[0]
-            others = [f for f in faces if f is not pick and abs(f[0] - pick[0]) < win_w * 0.75 and f[2] > pick[2] * 0.6]
-            if others:                                       # two people fit: frame both
-                x = (pick[0] + others[0][0]) / 2
-            prev = x
-            xs.append(x)
-            have.append(True)
+        cand = [(x, wt) for x, wt in _subjects(frames[i], max_y) if abs(x - cx_px) < 2.2 * lim]
+        if cand:
+            tot = sum(wt for _, wt in cand)
+            xs.append(sum(x * wt for x, wt in cand) / tot)
+            hits += 1
         else:
-            xs.append(prev if prev is not None else np.nan)
-            have.append(False)
-    xs = np.array(xs, float)
-    if np.all(np.isnan(xs)):
-        return np.full(n, hint * SW), 0.0
-    first = xs[~np.isnan(xs)][0]
-    xs[np.isnan(xs)] = first
-    k = 3                                                   # median filter (kills single false detections)
-    xm = np.array([np.median(xs[max(0, i - k):i + k + 1]) for i in range(len(xs))])
-    sig = 4.0                                               # gaussian (~0.27 s)
-    r = np.arange(-12, 13)
-    g = np.exp(-(r / sig) ** 2 / 2)
-    g /= g.sum()
-    pad = np.pad(xm, 12, mode="edge")
-    xs_s = np.convolve(pad, g, mode="valid")
-    vmax = 9.0 * step                                       # px per sample (~135 px/s at source scale)
-    for i in range(1, len(xs_s)):
-        xs_s[i] = xs_s[i - 1] + np.clip(xs_s[i] - xs_s[i - 1], -vmax, vmax)
-    full = np.interp(np.arange(n), np.arange(0, n, step)[:len(xs_s)], xs_s)
-    return full, float(np.mean(have))
+            xs.append(np.nan)
+    if hits < 0.5 * len(xs):
+        return None
+    xs = np.array(xs)
+    good = ~np.isnan(xs)
+    xs = np.interp(np.arange(len(xs)), np.flatnonzero(good), xs[good])
+    xs = np.array([np.median(xs[max(0, i - 2):i + 3]) for i in range(len(xs))])
+    r = np.arange(-8, 9)
+    g = np.exp(-(r / 3.0) ** 2 / 2)
+    xs = np.convolve(np.pad(xs, 8, mode="edge"), g / g.sum(), mode="valid")
+    xs = np.clip(xs, cx_px - lim, cx_px + lim)
+    return np.interp(np.arange(n), np.arange(0, n, step)[:len(xs)], xs)
 
 
 def zoom_at(cam, i, n, punch):
     p = i / max(1, n - 1)
-    z = {"push_in": 1.0 + 0.08 * p, "pull_out": 1.09 - 0.08 * p, "crash_zoom": 1.0 + 0.14 * min(1, i / 9),
-         "handheld": 1.04, "hold": 1.01 + 0.02 * p}.get(cam, 1.03)
+    z = {"push_in": 1.0 + 0.035 * p, "pull_out": 1.035 - 0.035 * p, "crash_zoom": 1.0 + 0.05 * min(1, i / 9),
+         "handheld": 1.015, "hold": 1.0 + 0.012 * p}.get(cam, 1.01)
     if punch:
-        z *= 1 + 0.07 * max(0, 1 - i / 7.5)
+        z *= 1 + 0.025 * max(0, 1 - i / 7.5)
     dx = dy = 0.0
     if cam == "handheld":
-        dx, dy = 5 * math.sin(i / 4), 4 * math.sin(i / 3 + 1)
+        dx, dy = 3 * math.sin(i / 5), 2.5 * math.sin(i / 4 + 1)
     return z, dx, dy
 
 
-def render(path, start, n, cam, punch, out_path, hint=0.5, subsafe=False, flip=False, fixed=False):
-    """Writes the reframed 1080x1920 shot to out_path; returns the share of samples with a tracked face."""
+def _bg(frame, cx):
+    """Cinematic extension: the same shot, cover-scaled, heavily blurred, darkened, warm-tinted."""
+    s = H / SH
+    cw = W / s
+    x0 = float(np.clip(cx - cw / 2, 0, SW - cw))
+    small = Image.fromarray(frame).crop((int(x0), 0, int(x0 + cw), SH)).resize((90, 160), Image.BILINEAR)
+    small = small.filter(ImageFilter.GaussianBlur(4))
+    a = np.asarray(small.resize((W, H), Image.BICUBIC), np.float32)
+    lum = a.mean(-1, keepdims=True)
+    a = lum + (a - lum) * 1.35                     # keep the colours of the shot alive
+    a = a * 0.78 + np.array([10, 2, 12])
+    yy = np.linspace(-1, 1, H)[:, None]
+    a *= (1 - 0.18 * yy ** 4)[..., None]
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+
+
+_FEATHER = {}
+
+
+def _feather(h):
+    if h not in _FEATHER:
+        m = np.ones((h, 1), np.float32)
+        f = min(70, h // 6)
+        m[:f, 0] = np.linspace(0, 1, f) ** 1.5
+        m[-f:, 0] = np.linspace(1, 0, f) ** 1.5
+        _FEATHER[h] = Image.fromarray((np.repeat(m, W, 1) * 255).astype(np.uint8))
+    return _FEATHER[h]
+
+
+def render(path, start, n, cam, punch, out_path, cx=0.5, w=0.32, subsafe=False, track=False, flip=False):
     frames = decode(path, start, n)
-    hf = 0.87 if subsafe else 1.0
-    base_h = SH * hf
-    base_w = base_h * W / H
-    xs, cov = track(frames, hint, base_w, max_y=base_h * 0.85)
-    if cov < 0.4 or fixed:          # too few faces to trust: use the editor's framing
-        xs = np.full(n, hint * SW)
+    if flip:
+        frames = np.ascontiguousarray(frames[:, :, ::-1])
+    extended = w > 0.33
+    top0 = 0.05 * SH if (subsafe and extended) else 0.0
+    bot = 0.87 * SH if subsafe else SH
+    avail_h = bot - top0
+    if extended:
+        base_w, base_h = min(w * SW, SW), avail_h
+    else:
+        base_h = avail_h
+        base_w = base_h * W / H
+    cx_px = cx * SW
+    path_x = refine(frames, cx_px, bot * 0.9) if track else None
+    xs = path_x if path_x is not None else np.full(n, cx_px)
     enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
                             "-r", str(FPS), "-i", "-", "-vf", "eq=contrast=1.05:saturation=1.10,format=yuv420p",
-                            "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", out_path], stdin=subprocess.PIPE)
+                            "-c:v", "libx264", "-preset", "medium", "-crf", "15", out_path], stdin=subprocess.PIPE)
     for i in range(n):
         z, dx, dy = zoom_at(cam, i, n, punch)
-        ch, cw = base_h / z, base_w / z
-        cx = float(np.clip(xs[i] + dx, cw / 2, SW - cw / 2))
-        top = 0.0 if subsafe else (SH - ch) * 0.35       # keep faces in the upper third when zooming
-        top = float(np.clip(top + dy, 0, SH * hf - ch))
-        sx = cw / W
+        cw, ch = base_w / z, base_h / z
+        x = float(np.clip(xs[i] + dx, cw / 2, SW - cw / 2))
+        top = float(np.clip(top0 + (base_h - ch) * 0.4 + dy, top0, bot - ch))
         im = Image.fromarray(frames[i])
-        if flip:
-            im = im.transpose(Image.FLIP_LEFT_RIGHT)
-        im = im.transform((W, H), Image.AFFINE, (sx, 0, cx - cw / 2, 0, sx, top), resample=Image.BICUBIC)
-        im = im.filter(ImageFilter.UnsharpMask(radius=2.2, percent=75, threshold=2))
-        enc.stdin.write(im.tobytes())
+        if not extended:
+            win = im.transform((540, 960), Image.AFFINE, (cw / 540, 0, x - cw / 2, 0, ch / 960, top), resample=Image.BICUBIC)
+            out = _sr(win)
+        else:
+            fgh = int(round(W * ch / cw)) // 2 * 2
+            if cw >= 540:      # enough native pixels: super-resolve the native window, then downscale (max detail)
+                nw, nh = int(round(cw)), int(round(ch))
+                win = im.transform((nw, nh), Image.AFFINE, (cw / nw, 0, x - cw / 2, 0, ch / nh, top), resample=Image.BICUBIC)
+                fg = _sr(win).resize((W, fgh), Image.LANCZOS)
+            else:
+                fh = fgh // 2
+                win = im.transform((540, fh), Image.AFFINE, (cw / 540, 0, x - cw / 2, 0, ch / fh, top), resample=Image.BICUBIC)
+                fg = _sr(win)
+            out = _bg(frames[i], x)
+            y0 = int((H - fg.height) * 0.46)
+            out.paste(fg, (0, y0), _feather(fg.height))
+        out = out.filter(ImageFilter.UnsharpMask(radius=1.4, percent=45, threshold=2))
+        enc.stdin.write(out.tobytes())
     enc.stdin.close()
     enc.wait()
-    return cov
+    return 1.0 if path_x is not None else 0.0
