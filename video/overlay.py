@@ -405,13 +405,13 @@ def draw_minimap(canvas, t):
     im.putalpha(Image.fromarray(np.minimum(np.asarray(im.getchannel("A")), np.asarray(mask))))
     d = ImageDraw.Draw(im)
     d.ellipse([c - r, c - r, c + r, c + r], outline=(255, 255, 255, 200), width=4)
-    im = im.resize((150, 150), Image.LANCZOS)
-    canvas.alpha_composite(im, (44, 1470))
+    im = im.resize((120, 120), Image.LANCZOS)
+    canvas.alpha_composite(im, (36, 1500))
     dd = ImageDraw.Draw(canvas)
-    dd.rounded_rectangle([50, 1628, 190, 1636], 6, fill=(0, 0, 0, 150))
-    dd.rounded_rectangle([50, 1628, 50 + 140 * (0.8 + 0.15 * math.sin(t * 0.7)), 1636], 6, fill=(90, 220, 110, 230))
-    dd.rounded_rectangle([50, 1642, 190, 1650], 6, fill=(0, 0, 0, 150))
-    dd.rounded_rectangle([50, 1642, 50 + 140 * 0.6, 1650], 6, fill=(80, 170, 255, 230))
+    dd.rounded_rectangle([40, 1630, 156, 1636], 6, fill=(0, 0, 0, 150))
+    dd.rounded_rectangle([40, 1630, 40 + 116 * (0.8 + 0.15 * math.sin(t * 0.7)), 1636], 6, fill=(90, 220, 110, 230))
+    dd.rounded_rectangle([40, 1642, 156, 1648], 6, fill=(0, 0, 0, 150))
+    dd.rounded_rectangle([40, 1642, 40 + 116 * 0.6, 1648], 6, fill=(80, 170, 255, 230))
 
 
 
@@ -438,14 +438,14 @@ def glow_dot(r, col):
 
 
 _RNG = np.random.default_rng(11)
-AMBIENT = [dict(x=_RNG.uniform(0, W), y=_RNG.uniform(0, H), v=_RNG.uniform(25, 70), r=int(_RNG.choice([3, 4, 5, 7])),
+AMBIENT = [dict(x=float(_RNG.choice([_RNG.uniform(10, 120), _RNG.uniform(W - 120, W - 10)])), y=_RNG.uniform(0, H), v=_RNG.uniform(25, 70), r=int(_RNG.choice([3, 4, 5, 7])),
                 ph=_RNG.uniform(0, 6.28), col=[(255, 46, 136), (255, 154, 31), (255, 220, 180)][i % 3]) for i in range(34)]
 
 
 def draw_ambient(canvas, t):
     for p in AMBIENT:
         y = (p["y"] - t * p["v"]) % (H + 100) - 50
-        x = p["x"] + 22 * math.sin(t * 0.8 + p["ph"])
+        x = p["x"] + 10 * math.sin(t * 0.8 + p["ph"])
         a = 0.2 + 0.2 * math.sin(t * 2.2 + p["ph"])
         paste_center(canvas, glow_dot(p["r"], p["col"]), x, y, max(0.05, a))
 
@@ -489,8 +489,8 @@ def draw_ping(canvas, x, y, age, dur, base=34):
 def draw_stars(canvas, e, age):
     a = fx_alpha(age, e["dur"])
     n = e["n"]
-    size = 44
-    x0 = W / 2 - 6 * size * 0.92 / 2 + size / 2
+    size = 30
+    x0 = W - 40 - 6 * size * 0.92 + size / 2
     flash = math.sin(age * 2 * math.pi * 4) > 0
     lose = e.get("lose")
     for i in range(6):
@@ -499,11 +499,11 @@ def draw_stars(canvas, e, age):
             on = on and (i < n - int((age - (e["dur"] - 0.7)) / 0.12))
         sp = star_sprite(on, bool(on and flash))
         pop = back_out(clamp((age - i * 0.09) / 0.25)) if on else 1.0
-        paste_center(canvas, scaled(sp, max(0.05, pop * 0.4)), x0 + i * size * 0.92, 300, a)
+        paste_center(canvas, scaled(sp, max(0.05, pop * 0.27)), x0 + i * size * 0.92, 112, a)
 
 
 
-ICON_POS = [(830, 980), (250, 980)]
+ICON_POS = [(1018, 860), (62, 860)]
 
 
 def draw_icon(canvas, e, age, slot):
@@ -512,10 +512,11 @@ def draw_icon(canvas, e, age, slot):
         return
     bx, by = ICON_POS[slot % 2]
     cx = bx + 8 * math.sin(age * 1.7 + slot)
-    cy = by - 26 * ease_out(age / e["dur"]) + 6 * math.sin(age * 2.6)     # slow float upwards
+    cx = bx + 3 * math.sin(age * 1.7 + slot)
+    cy = by - 18 * ease_out(age / e["dur"]) + 4 * math.sin(age * 2.6)     # slow float upwards
     ph = (age * 0.9) % 1
-    paste_center(canvas, scaled(ring_sprite(40, 4), 0.9 + 0.7 * ph), cx, cy, 0.55 * (1 - ph) * min(1, s))
-    paste_center(canvas, scaled(icon_sprite(e["name"]), 0.36 * s, 4 * math.sin(age * 3)), cx, cy, min(1, s))
+    paste_center(canvas, scaled(ring_sprite(40, 4), 0.38 + 0.3 * ph), cx, cy, 0.5 * (1 - ph) * min(1, s))
+    paste_center(canvas, scaled(icon_sprite(e["name"]), 0.16 * s, 4 * math.sin(age * 3)), cx, cy, min(1, s))
 
 
 def render_overlay(t):
@@ -537,19 +538,25 @@ def render_overlay(t):
         prog = (prog_from + (n / 10 - prog_from) * ease_out(lt / 0.5)) if n else 0.0
         changed = n != prev and not intro
         pop = 1 + 0.3 * (1 - elastic_out(lt / 0.7)) if changed else 1.0
-        CY = 150
+        CY = 118
         if changed and lt < 0.5:
-            paste_center(canvas, scaled(ring_sprite(75, 5), 1 + lt * 1.6), W / 2, CY, 0.8 * (1 - lt / 0.5))
-        paste_center(canvas, scaled(counter_sprite(n, prog, t, 1.0), max(0.02, 0.62 * pop * appear)), W / 2, CY)
+            paste_center(canvas, scaled(ring_sprite(52, 4), 1 + lt * 1.2), W / 2, CY, 0.7 * (1 - lt / 0.5))
+        paste_center(canvas, scaled(counter_sprite(n, prog, t, 1.0), max(0.02, 0.44 * pop * appear)), W / 2, CY)
         d = ImageDraw.Draw(canvas)
         for i in range(10):
-            x = W / 2 + (i - 4.5) * 20
+            x = W / 2 + (i - 4.5) * 15
             on = i < n
             col = tuple((PINK + (ORANGE - PINK) * i / 9).astype(int)) + (230,) if on else (255, 255, 255, 80)
-            r = 4.5 if on else 3.5
+            r = 3.5 if on else 2.5
             if on and i == n - 1:
-                r = 4.5 + 1.5 * abs(math.sin(t * 5))
-            d.ellipse([x - r, 238 - r, x + r, 238 + r], fill=col)
+                r = 3.5 + 1.2 * abs(math.sin(t * 5))
+            d.ellipse([x - r, 190 - r, x + r, 190 + r], fill=col)
+
+    # small "#n" badge in the upper-left corner
+    if seg["id"].startswith("f"):
+        sp = corner_num_sprite(seg["counter"])
+        pop = elastic_out(lt / 0.6)
+        paste_center(canvas, scaled(sp, max(0.05, pop)), 40 + sp.width / 2 - 20, 118)
 
     # timed decorative FX
     icon_slot = 0
@@ -558,11 +565,8 @@ def render_overlay(t):
         if not 0 <= age < e["dur"]:
             continue
         k = e["kind"]
-        if k == "pulse":
-            paste_center(canvas, scaled(ring_sprite(60, 4), 0.6 + age * 1.4), W / 2, 960, 0.7 * max(0, 1 - age / 0.9))
-            draw_burst(canvas, W / 2, 960, age, n=14, seed=int(e["t"] * 10), dist=170, dur=0.8, small=True)
-        elif k == "ping":
-            draw_ping(canvas, e["x"], e["y"], age, e["dur"])
+        if k in ("pulse", "ping"):
+            continue   # centre stays empty
         elif k == "stars":
             draw_stars(canvas, e, age)
         elif k == "icon":
@@ -572,16 +576,26 @@ def render_overlay(t):
     tr = seg["transition"]
     if tr == "flash" and lt < 0.3:
         canvas.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(255 * (1 - lt / 0.3) ** 1.5))))
-    if lt < 0.45 and idx > 0:   # glow sweep on every transition
-        k = lt / 0.45
-        yy, xx = np.mgrid[0:H // 8, 0:W // 8]
-        cx = -20 + k * (W // 8 + 40)
-        g = np.clip(1 - np.sqrt((xx - cx) ** 2 + (yy - H // 16) ** 2 * 0.25) / 80, 0, 1)
-        a = Image.fromarray((g * 110 * math.sin(math.pi * k)).astype(np.uint8)).resize((W, H), Image.BILINEAR)
-        leak = Image.new("RGBA", (W, H), (255, 120, 80, 0))
-        leak.putalpha(a)
-        canvas.alpha_composite(leak)
     return canvas
+
+
+@lru_cache(None)
+def corner_num_sprite(n):
+    f = font(F_ANTON, 50)
+    txt = f"#{n}"
+    w = int(f.getlength(txt)) + 40
+    h = 90
+    m = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(m).text((20, h / 2), txt, font=f, anchor="lm", fill=255)
+    st = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(st).text((20, h / 2), txt, font=f, anchor="lm", fill=255, stroke_width=4, stroke_fill=255)
+    im = Image.new("RGBA", (w, h), (255, 80, 110, 0))
+    im.putalpha(st.filter(ImageFilter.GaussianBlur(8)).point(lambda v: int(v * 0.7)))
+    blk = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    blk.paste((15, 5, 20, 255), (0, 0), st)
+    im = Image.alpha_composite(im, blk)
+    im.paste(gradient_img(w, h, np.array([255, 70, 150.]), np.array([255, 170, 40.])), (0, 0), m)
+    return im
 
 
 @lru_cache(None)

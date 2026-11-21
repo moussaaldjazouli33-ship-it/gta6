@@ -28,10 +28,11 @@ The final video is `out/gta6_10_details_FINAL.mp4`, built only from the real GTA
   - In the first seconds of some clips, a small ESRB rating badge sits in a corner. Those shots are zoomed and reframed so it's out of frame.
 - **Camera.** Every shot moves (push-in, pull-out, pan, crash zoom, handheld), and each cut inside a detail gets a 10% punch-in.
   - Transitions between details: smooth whip, zoom, white flash, pixel glitch, radial spin, light leak.
-- **Graphics** (`video/overlay.py`): **no text on screen at all**, apart from the small counter.
-  - Small circular pink/orange counter at the top centre (0/10 → 10/10) with progress dots and a soft ring pulse on each spoken number.
-  - Small floating gaming icons (about 86 px, two at most at a time, either side of the centre) appear on the matching words. Icons: phone, car, gun, eye, heart, cash, police, location, flame, share.
-  - Thin glowing rings on characters (Lucia / Jason), small wanted stars on police moments, a compact radar, faint particles, and a soft light sweep on transitions.
+- **Graphics** (`video/overlay.py`): the **centre of the frame stays empty**. No subtitles, no text, and nothing drawn over the characters.
+  - Small pink/orange counter at the top centre (0/10 → 10/10) with small progress dots.
+  - A small "#1"–"#10" in the upper-left corner, and tiny wanted stars in the upper-right corner on police moments.
+  - Tiny gaming icons (about 38 px) at the left and right screen edges, synced to the voice-over.
+  - Faint particles at the edges only, a compact radar bottom-left, and clean footage transitions.
 - **Clean footage only.** Banned source ranges (logos, PRE-LOAD NOW, PS5 splash, end cards) are listed in `timeline.py`. Any shot touching them, transitions included, is refused.
 - **Audio.** Your voice-over is level-controlled. The synthwave bed sits low at 30% and is ducked further whenever you speak. Subtle SFX: whoosh, ding, impact, cash, riser.
 
