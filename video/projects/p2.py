@@ -59,7 +59,7 @@ SHOT_LIST = [
     (0.00, "t1", 11.30, "push_in", "x=0.62 track"),           # Jason on the phone (broke)
     (2.20, "t1", 25.80, "push_in", "x=0.42 w=0.64"),          # Lucia + Jason convertible (both)
     (3.60, "t1", 52.36, "crash_zoom", "x=0.55"),              # gunman + explosion
-    (4.78, "t1", 4.45, "pull_out", "x=0.50 w=0.60"),          # marina aerial
+    (4.78, "t1", 4.45, "pull_out", "x=0.50"),          # marina aerial
     (6.52, "t1", 6.40, "push_in", "x=0.58 w=0.82"),           # Jason polishing (hands + face)
     (8.70, "t1", 61.10, "hold", "x=0.45 w=0.70"),             # crew at night (3 people)
     (10.10, "t1", 72.20, "crash_zoom", "x=0.32 w=0.50"),      # Lucia shooting (moving right)
@@ -67,15 +67,15 @@ SHOT_LIST = [
     (11.70, "t1", 41.75, "push_in", "x=0.45"),                # neon reach
     (12.08, "t1", 18.40, "push_in", "x=0.55 w=0.50"),         # lowrider (3 people)
     (14.00, "t2", 23.50, "handheld", "subsafe x=0.55"),       # driving at night
-    (15.50, "t1", 46.60, "crash_zoom", "x=0.55 w=0.60"),      # police chase street
+    (15.50, "t1", 46.60, "crash_zoom", "x=0.50"),      # police chase street
     (16.54, "t1", 69.35, "push_in", "x=0.45"),                # helicopter over the city at night
     (17.30, "t1", 32.18, "hold", "x=0.35"),                   # Jason driving
-    (18.10, "t1", 38.40, "pull_out", "x=0.40 w=0.50"),        # plane / bike
+    (18.10, "t1", 38.40, "pull_out", "x=0.45"),        # plane / bike
     (18.92, "t2", 12.40, "push_in", "subsafe x=0.55"),        # Lucia breaking into a car
     (20.70, "t2", 14.90, "push_in", "subsafe x=0.56 track"),  # Lucia inside (lockpick)
-    (22.20, "t1", 27.25, "hold", "x=0.50 w=0.55"),            # swamp crew at sunset
+    (22.20, "t1", 27.25, "hold", "x=0.50"),            # swamp crew at sunset
     (23.38, "t1", 35.90, "push_in", "x=0.36 w=0.72"),         # bedroom couple (both)
-    (24.80, "t1", 57.90, "pull_out", "x=0.65 w=0.50"),        # wrecked on the couch
+    (24.80, "t1", 57.90, "pull_out", "x=0.68"),        # wrecked on the couch
     (26.15, "t2", 190.00, "push_in", "subsafe x=0.62 track"), # apartment, Lucia
     (27.60, "t2", 194.00, "hold", "subsafe x=0.58 w=0.45"),   # couch couple (both)
     (29.34, "t1", 56.45, "push_in", "x=0.48 track"),          # gym (muscu)
@@ -87,15 +87,15 @@ SHOT_LIST = [
     (36.65, "t1", 53.90, "crash_zoom", "x=0.50"),             # laser
     (37.25, "t1", 28.80, "push_in", "x=0.58"),                # Jason in red light (red door)
     (38.10, "t1", 64.30, "hold", "x=0.50 w=0.55"),            # gun in the teal room (arm + man)
-    (39.60, "t1", 60.25, "handheld", "x=0.50 w=0.50"),        # firefight (braquage)
-    (40.46, "t1", 2.10, "push_in", "x=0.50 w=0.60"),          # truck towing a boat, billboard
-    (41.90, "t1", 54.60, "pull_out", "x=0.50 w=0.60"),        # beach crowd + plane
+    (39.60, "t1", 60.25, "handheld", "x=0.45"),        # firefight (braquage)
+    (40.46, "t1", 2.10, "push_in", "x=0.40"),          # truck towing a boat, billboard
+    (41.90, "t1", 54.60, "pull_out", "x=0.50"),        # beach crowd + plane
     (43.38, "t2", 39.20, "push_in", "subsafe x=0.42 w=0.50"), # hands up, police (both)
     (45.00, "t2", 41.60, "crash_zoom", "subsafe x=0.40 w=0.65"),  # closer (both)
     (46.42, "t1", 20.55, "push_in", "x=0.45"),                # iguana (gross)
-    (47.50, "t1", 13.60, "hold", "x=0.42 w=0.60"),            # dock + seaplane
+    (47.50, "t1", 13.60, "hold", "x=0.42"),            # dock + seaplane
     (48.40, "t2", 170.10, "push_in", "subsafe x=0.25"),       # bar crowd
-    (50.00, "t1", 59.30, "handheld", "x=0.50 w=0.45"),        # club (two dancers)
+    (50.00, "t1", 59.30, "handheld", "x=0.50"),        # club (two dancers)
     (50.82, "t1", 39.85, "push_in", "x=0.37 w=0.55"),         # Jason + Lucia by the car (both)
     (52.60, "t1", 66.50, "pull_out", "x=0.45 w=0.55"),        # balcony couple (both)
     (53.95, "t2", 124.00, "push_in", "subsafe x=0.52 track"), # Jason close-up

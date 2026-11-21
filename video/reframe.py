@@ -47,9 +47,20 @@ def _sr(img):
         so = ort.SessionOptions()
         so.intra_op_num_threads = 1
         _SESS = ort.InferenceSession(SR_MODEL, so, providers=["CPUExecutionProvider"])
-    x = np.asarray(img, np.float32).transpose(2, 0, 1)[None]
-    y = _SESS.run(None, {"input": x})[0][0].transpose(1, 2, 0)
-    return Image.fromarray(np.clip(y + 0.5, 0, 255).astype(np.uint8))
+    a = np.asarray(img, np.float32)
+    h, w = a.shape[:2]
+    T, P = 320, 12                                   # tiles with overlap keep memory low
+    out = np.zeros((h * 2, w * 2, 3), np.float32)
+    for y0 in range(0, h, T):
+        for x0 in range(0, w, T):
+            ya, xa = max(0, y0 - P), max(0, x0 - P)
+            yb, xb = min(h, y0 + T + P), min(w, x0 + T + P)
+            x = a[ya:yb, xa:xb].transpose(2, 0, 1)[None]
+            y = _SESS.run(None, {"input": np.ascontiguousarray(x)})[0][0].transpose(1, 2, 0)
+            cy, cx = (y0 - ya) * 2, (x0 - xa) * 2
+            th, tw = (min(h, y0 + T) - y0) * 2, (min(w, x0 + T) - x0) * 2
+            out[y0 * 2:y0 * 2 + th, x0 * 2:x0 * 2 + tw] = y[cy:cy + th, cx:cx + tw]
+    return Image.fromarray(np.clip(out + 0.5, 0, 255).astype(np.uint8))
 
 
 def decode(path, start, n):
