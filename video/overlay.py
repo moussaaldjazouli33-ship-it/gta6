@@ -236,6 +236,39 @@ def icon_sprite(name):
         d.polygon([(c - 120, c - 15), (c - 40, c - 15), (c - 62, c + 110), (c - 135, c + 110)], fill=W_)
         d.arc([c - 50, c - 30, c + 10, c + 40], 0, 180, fill=W_, width=12)
         d.rectangle([c - 100, c - 52, c + 100, c - 44], fill=O)
+    elif name == "fuel":
+        d.rounded_rectangle([c - 90, c - 120, c + 40, c + 125], 18, fill=W_)
+        d.rectangle([c - 65, c - 95, c + 15, c - 30], fill=(18, 8, 28))
+        d.line([(c + 40, c - 60), (c + 90, c - 30), (c + 90, c + 70), (c + 70, c + 90)], fill=W_, width=16)
+        d.rectangle([c - 110, c + 110, c + 60, c + 130], fill=O)
+    elif name == "bolt":
+        d.polygon([(c + 30, c - 140), (c - 80, c + 15), (c - 5, c + 15), (c - 35, c + 140), (c + 85, c - 25), (c + 10, c - 25)], fill=Y)
+    elif name == "lock":
+        d.arc([c - 70, c - 140, c + 70, c + 10], 180, 360, fill=W_, width=26)
+        d.rectangle([c - 70, c - 70, c - 44, c - 10], fill=W_)
+        d.rectangle([c + 44, c - 70, c + 70, c - 10], fill=W_)
+        d.rounded_rectangle([c - 105, c - 20, c + 105, c + 125], 22, fill=W_)
+        d.ellipse([c - 20, c + 25, c + 20, c + 65], fill=(18, 8, 28))
+        d.rectangle([c - 8, c + 50, c + 8, c + 95], fill=(18, 8, 28))
+    elif name == "moon":
+        d.ellipse([c - 120, c - 120, c + 120, c + 120], fill=Y)
+        d.ellipse([c - 60, c - 150, c + 160, c + 70], fill=(18, 8, 28))
+        for sx, sy in ((70, 60), (110, -10)):
+            d.polygon(star_points(c + sx, c + sy, 22, 9), fill=W_)
+    elif name == "dumbbell":
+        d.rectangle([c - 80, c - 14, c + 80, c + 14], fill=W_)
+        for sx in (-1, 1):
+            d.rounded_rectangle([c + sx * 80 - 18, c - 80, c + sx * 80 + 18, c + 80], 8, fill=W_)
+            d.rounded_rectangle([c + sx * 118 - 16, c - 55, c + sx * 118 + 16, c + 55], 8, fill=O)
+    elif name == "door":
+        d.rectangle([c - 85, c - 140, c + 85, c + 135], fill=W_)
+        d.rectangle([c - 65, c - 120, c + 65, c + 135], fill=(18, 8, 28))
+        d.polygon([(c - 65, c - 120), (c + 40, c - 95), (c + 40, c + 150), (c - 65, c + 135)], fill=P)
+        d.ellipse([c + 12, c + 5, c + 30, c + 23], fill=W_)
+    elif name == "paw":
+        d.ellipse([c - 75, c - 5, c + 75, c + 120], fill=W_)
+        for sx, sy, r in ((-105, -40, 34), (-45, -110, 36), (45, -110, 36), (105, -40, 34)):
+            d.ellipse([c + sx - r, c + sy - r, c + sx + r, c + sy + r], fill=W_)
     return im.resize((S, S), Image.LANCZOS)
 
 
@@ -574,8 +607,8 @@ def render_overlay(t):
             icon_slot += 1
 
     tr = seg["transition"]
-    if tr == "flash" and lt < 0.3:
-        canvas.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(255 * (1 - lt / 0.3) ** 1.5))))
+    if tr == "flash" and lt < 0.25:     # soft flash (the footage transition already dips to white)
+        canvas.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(90 * (1 - lt / 0.25) ** 1.5))))
     return canvas
 
 

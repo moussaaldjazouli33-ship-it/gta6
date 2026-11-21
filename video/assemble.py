@@ -19,7 +19,7 @@ import tempfile
 
 
 sys.path.insert(0, os.path.dirname(__file__))
-from timeline import FPS, W, H, DURATION, SEGMENTS, VO_FILE, all_shots  # noqa: E402
+from timeline import FPS, W, H, DURATION, SEGMENTS, VO_FILE, NAME, all_shots  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -66,6 +66,13 @@ def render_shot(shot, dur, punch, tmp):
     n = max(1, int(round(dur * FPS)))
     out = os.path.join(tmp, f"{shot['id']}.mp4")
     path = os.path.join(FOOT, shot["src"] + ".mp4")
+    if shot.get("reframe"):                     # 16:9 source -> tracked 9:16 crop
+        import reframe
+        cov = reframe.render(path, shot["src_in"], n, shot["cam"], punch, out, hint=shot.get("hint", 0.5),
+                             subsafe=shot.get("subsafe", False), flip=shot.get("flip", False),
+                             fixed=shot.get("fixed", False))
+        print(f"  {shot['id']}: {shot['src']}@{shot['src_in']:.2f}s  face-tracked {cov * 100:.0f}% of samples")
+        return out
     z, x, y = zoom_for(shot, n, punch)
     vf = (f"fps={FPS},{'hflip,' if shot['flip'] else ''}scale={W * 2}:{H * 2}:flags=lanczos,"
           f"zoompan=z='{z}':x='{x}':y='{y}':d=1:s={W}x{H}:fps={FPS},"
@@ -84,7 +91,7 @@ def main():
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--bg-only", action="store_true", help="only cut the footage track to out/bg_cut.mp4")
     ap.add_argument("--reuse-bg", action="store_true", help="skip cutting, reuse out/bg_cut.mp4")
-    ap.add_argument("--out", default=os.path.join(ROOT, "out", "gta6_10_details_FINAL.mp4"))
+    ap.add_argument("--out", default=os.path.join(ROOT, "out", f"{NAME}_FINAL.mp4"))
     a = ap.parse_args()
 
     shots = all_shots()
@@ -96,26 +103,30 @@ def main():
         return
     vo = a.vo or (VO_FILE if os.path.exists(VO_FILE) else None)
 
-    overlay = os.path.join(ROOT, "out", "overlay_prores4444.mov")
-    music = os.path.join(ROOT, "out", "soundtrack.wav")
+    overlay = os.path.join(ROOT, "out", f"{NAME}_overlay.mov")
+    music = os.path.join(ROOT, "out", f"{NAME}_soundtrack.wav")
     if not os.path.exists(music):
         subprocess.check_call([sys.executable, os.path.join(HERE, "audio.py"), music])
     if not os.path.exists(overlay) and not a.bg_only:
-        subprocess.check_call([sys.executable, os.path.join(HERE, "overlay.py")])
+        subprocess.check_call([sys.executable, os.path.join(HERE, "overlay.py"), "--out", overlay])
 
-    bg = os.path.join(ROOT, "out", "bg_cut.mp4")
+    bg = os.path.join(ROOT, "out", f"{NAME}_bg.mp4")
     if not a.reuse_bg:
         tmp = tempfile.mkdtemp(prefix="gta6_")
-        seg_clips = []
+        jobs = []
         for si, seg in enumerate(SEGMENTS):
-            parts = []
             segshots = [s for s in shots if s["seg"] == seg["id"]]
             for k, s in enumerate(segshots):
                 dur = s["end"] - s["start"]
                 if k == len(segshots) - 1 and si < len(SEGMENTS) - 1:
                     dur += XD            # tail overlap consumed by the xfade
-                print(f"  cutting {s['id']}")
-                parts.append(render_shot(s, dur, punch=k > 0, tmp=tmp))
+                jobs.append((s, dur, k > 0, tmp))
+        from multiprocessing import Pool
+        with Pool(os.cpu_count()) as pool:
+            rendered = dict(zip([j[0]["id"] for j in jobs], pool.starmap(render_shot, jobs)))
+        seg_clips = []
+        for si, seg in enumerate(SEGMENTS):
+            parts = [rendered[s["id"]] for s in shots if s["seg"] == seg["id"]]
             lst = os.path.join(tmp, f"{seg['id']}.txt")
             with open(lst, "w") as f:
                 f.writelines(f"file '{p}'\n" for p in parts)
