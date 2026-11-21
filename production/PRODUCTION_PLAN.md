@@ -28,16 +28,16 @@ The final video is `out/gta6_10_details_FINAL.mp4`, built only from the real GTA
   - In the first seconds of some clips, a small ESRB rating badge sits in a corner. Those shots are zoomed and reframed so it's out of frame.
 - **Camera.** Every shot moves (push-in, pull-out, pan, crash zoom, handheld), and each cut inside a detail gets a 10% punch-in.
   - Transitions between details: smooth whip, zoom, white flash, pixel glitch, radial spin, light leak.
-- **Graphics** (`video/overlay.py`):
-  - Glowing pink/orange circular counter at the top, with the "DÉTAILS QUE PERSONNE NE CONNAÎT" pill and 10 progress dots.
-  - Word-by-word subtitles in Anton, white with a thick black outline. The current word turns yellow and gets a small bump.
-  - The spoken numbers appear as a big pink/orange "#1"–"#10".
-  - Gaming icons: SMS, weapons, eye, duo, cash, police, pin, flame, comment, share.
+- **Graphics** (`video/overlay.py`): **no subtitles**, only decorative elements synced to the voice.
+  - Glowing pink/orange counter and big "#1"–"#10" on each spoken number.
+  - Short labels: DID YOU KNOW?, 10 CRAZY DETAILS, DRIVE-BY MODE, SECRET SAFE, WHO'S YOUR MAIN?…
+  - LUCIA / JASON tags with pulsing rings, phone notifications (missed call / new message), a relationship meter, and wanted stars on police moments.
+  - +$ money pops, gaming icons with arrows, a radar minimap, glowing particles, and a light sweep on every transition.
+- **Clean footage only.** Banned source ranges (logos, PRE-LOAD NOW, PS5 splash, end cards) are listed in `timeline.py`. Any shot touching them, transitions included, is refused.
 - **Audio.** Your voice-over is level-controlled. The synthwave bed sits low at 30% and is ducked further whenever you speak. Subtle SFX: whoosh, ding, impact, cash, riser.
 
 ## Files
 - `edit_list.csv`: every shot, with timeline in/out, source clip, in-point and camera move.
-- `captions_words.srt`: the subtitle chunks as burned into the video.
 - `vo_words.json`: word timings.
 
 ## Rebuild after a change

@@ -24,7 +24,7 @@ from timeline import FPS, W, H, DURATION, SEGMENTS, VO_FILE, all_shots  # noqa: 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 FOOT = os.path.join(ROOT, "footage")
-XD = 0.25   # transition length between facts
+from timeline import XFADE_D as XD  # noqa: E402
 XFADE = dict(whip="smoothleft", zoom_punch="zoomin", flash="fadewhite", glitch="pixelize",
              spin="radial", light_leak="fade")
 
@@ -55,11 +55,18 @@ def zoom_expr(cam, n, punch, badge):
     return z, x, y
 
 
+def zoom_for(shot, n, punch):
+    z, x, y = zoom_expr(shot["cam"], n, punch, shot["badge"])
+    if shot["badge"] and shot["flip"]:
+        x = "0"        # mirrored: the badge is now bottom-right, anchor left instead
+    return z, x, y
+
+
 def render_shot(shot, dur, punch, tmp):
     n = max(1, int(round(dur * FPS)))
     out = os.path.join(tmp, f"{shot['id']}.mp4")
     path = os.path.join(FOOT, shot["src"] + ".mp4")
-    z, x, y = zoom_expr(shot["cam"], n, punch, shot["badge"])
+    z, x, y = zoom_for(shot, n, punch)
     vf = (f"fps={FPS},{'hflip,' if shot['flip'] else ''}scale={W * 2}:{H * 2}:flags=lanczos,"
           f"zoompan=z='{z}':x='{x}':y='{y}':d=1:s={W}x{H}:fps={FPS},"
           f"eq=contrast=1.05:saturation=1.10,unsharp=5:5:0.5,format=yuv420p")
@@ -75,6 +82,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--vo", help="voice-over audio aligned to t=0 (see production/voiceover.srt)")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--bg-only", action="store_true", help="only cut the footage track to out/bg_cut.mp4")
+    ap.add_argument("--reuse-bg", action="store_true", help="skip cutting, reuse out/bg_cut.mp4")
     ap.add_argument("--out", default=os.path.join(ROOT, "out", "gta6_10_details_FINAL.mp4"))
     a = ap.parse_args()
 
@@ -91,46 +100,51 @@ def main():
     music = os.path.join(ROOT, "out", "soundtrack.wav")
     if not os.path.exists(music):
         subprocess.check_call([sys.executable, os.path.join(HERE, "audio.py"), music])
-    if not os.path.exists(overlay):
+    if not os.path.exists(overlay) and not a.bg_only:
         subprocess.check_call([sys.executable, os.path.join(HERE, "overlay.py")])
 
-    tmp = tempfile.mkdtemp(prefix="gta6_")
-    seg_clips = []
-    for si, seg in enumerate(SEGMENTS):
-        parts = []
-        segshots = [s for s in shots if s["seg"] == seg["id"]]
-        for k, s in enumerate(segshots):
-            dur = s["end"] - s["start"]
-            if k == len(segshots) - 1 and si < len(SEGMENTS) - 1:
-                dur += XD            # tail overlap consumed by the xfade
-            print(f"  cutting {s['id']}")
-            parts.append(render_shot(s, dur, punch=k > 0, tmp=tmp))
-        lst = os.path.join(tmp, f"{seg['id']}.txt")
-        with open(lst, "w") as f:
-            f.writelines(f"file '{p}'\n" for p in parts)
-        sc = os.path.join(tmp, f"seg_{seg['id']}.mp4")
-        ff("-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", sc)
-        seg_clips.append(sc)
+    bg = os.path.join(ROOT, "out", "bg_cut.mp4")
+    if not a.reuse_bg:
+        tmp = tempfile.mkdtemp(prefix="gta6_")
+        seg_clips = []
+        for si, seg in enumerate(SEGMENTS):
+            parts = []
+            segshots = [s for s in shots if s["seg"] == seg["id"]]
+            for k, s in enumerate(segshots):
+                dur = s["end"] - s["start"]
+                if k == len(segshots) - 1 and si < len(SEGMENTS) - 1:
+                    dur += XD            # tail overlap consumed by the xfade
+                print(f"  cutting {s['id']}")
+                parts.append(render_shot(s, dur, punch=k > 0, tmp=tmp))
+            lst = os.path.join(tmp, f"{seg['id']}.txt")
+            with open(lst, "w") as f:
+                f.writelines(f"file '{p}'\n" for p in parts)
+            sc = os.path.join(tmp, f"seg_{seg['id']}.mp4")
+            ff("-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", sc)
+            seg_clips.append(sc)
 
-    # chain xfades so each transition starts exactly on the fact boundary
-    inputs, chain, last = [], [], "[0:v]"
-    for i, p in enumerate(seg_clips):
-        inputs += ["-i", p]
-    for i in range(1, len(seg_clips)):
-        tr = XFADE[SEGMENTS[i]["transition"]]
-        lab = f"[x{i}]"
-        chain.append(f"{last}[{i}:v]xfade=transition={tr}:duration={XD}:offset={SEGMENTS[i]['start']:.3f}{lab}")
-        last = lab
-    bg = os.path.join(tmp, "bg.mp4")
-    ff(*inputs, "-filter_complex", ";".join(chain), "-map", last, "-c:v", "libx264", "-preset", "veryfast",
-       "-crf", "14", "-pix_fmt", "yuv420p", bg)
+        # chain xfades so each transition starts exactly on the fact boundary
+        inputs, chain, last = [], [], "[0:v]"
+        for i, p in enumerate(seg_clips):
+            inputs += ["-i", p]
+        for i in range(1, len(seg_clips)):
+            tr = XFADE[SEGMENTS[i]["transition"]]
+            lab = f"[x{i}]"
+            chain.append(f"{last}[{i}:v]xfade=transition={tr}:duration={XD}:offset={SEGMENTS[i]['start']:.3f}{lab}")
+            last = lab
+        ff(*inputs, "-filter_complex", ";".join(chain), "-map", last, "-c:v", "libx264", "-preset", "veryfast",
+           "-crf", "14", "-pix_fmt", "yuv420p", bg)
 
+
+    if a.bg_only:
+        print("wrote", bg)
+        return
     inputs = ["-i", bg, "-i", overlay, "-i", music]
     if vo:
         inputs += ["-i", vo]
         audio = ("[2:a]volume=0.30[m];[3:a]aresample=44100,highpass=f=80,acompressor=threshold=-18dB:ratio=3,"
                  "volume=1.6,asplit=2[vo][sc];[m][sc]sidechaincompress=threshold=0.04:ratio=8:attack=20:release=300[duck];"
-                 "[duck][vo]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]")
+                 "[duck][vo]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95,loudnorm=I=-14:TP=-1.0:LRA=11,aresample=48000[a]")
     else:
         print("  note: no --vo given, the cut has music + SFX only")
         audio = "[2:a]anull[a]"

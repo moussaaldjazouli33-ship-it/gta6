@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 sys.path.insert(0, os.path.dirname(__file__))
-from timeline import SEGMENTS, FPS, W, H, DURATION, all_shots, all_captions, PILL_TEXT, TITLE_LABEL  # noqa: E402
+from timeline import SEGMENTS, FPS, W, H, DURATION, FX, PILL_TEXT, TITLE_LABEL  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -33,8 +33,6 @@ PINK = np.array([255, 46, 136], float)
 ORANGE = np.array([255, 154, 31], float)
 YELLOW = (255, 225, 77)
 
-SHOTS = all_shots()
-CAPS = all_captions()
 
 # =================================================================== easing
 def clamp(x, a=0.0, b=1.0):
@@ -75,12 +73,6 @@ def seg_at(t):
     return SEGMENTS[-1]
 
 
-def shot_at(t):
-    for s in SHOTS:
-        if s["start"] <= t < s["end"]:
-            return s
-    return SHOTS[-1]
-
 
 # =================================================================== overlay sprites
 def gradient_img(w, h, c1=PINK, c2=ORANGE, horizontal=False):
@@ -92,117 +84,6 @@ def gradient_img(w, h, c1=PINK, c2=ORANGE, horizontal=False):
     arr = np.broadcast_to(arr, (h, w, 3))
     return Image.fromarray(arr.astype(np.uint8), "RGB")
 
-
-@lru_cache(64)
-def caption_sprite(text, hl, size=134, color_hl=YELLOW, gold=False):
-    hl = set(hl)
-    f = font(F_ANTON, size)
-    stroke = max(8, size // 10)
-    words = text.split(" ")
-    space = f.getlength(" ")
-    maxw = 940
-
-    def width(ws):
-        return sum(f.getlength(w) for w in ws) + space * (len(ws) - 1)
-
-    lines = [words]
-    if width(words) > maxw and len(words) > 1:
-        best = None
-        for i in range(1, len(words)):
-            m = max(width(words[:i]), width(words[i:]))
-            if best is None or m < best[0]:
-                best = (m, i)
-        lines = [words[:best[1]], words[best[1]:]]
-    while max(width(l) for l in lines) > maxw:
-        size -= 6
-        f = font(F_ANTON, size)
-        space = f.getlength(" ")
-        stroke = max(8, size // 10)
-    asc, desc = f.getmetrics()
-    lh = asc + desc
-    pad = stroke + 30
-    Wd = int(max(width(l) for l in lines) + pad * 2)
-    Ht = int(lh * len(lines) * 0.98 + pad * 2)
-    sprite = Image.new("RGBA", (Wd, Ht), (0, 0, 0, 0))
-    shadow = Image.new("L", (Wd, Ht), 0)
-    fill_hl = Image.new("L", (Wd, Ht), 0)
-    d = ImageDraw.Draw(sprite)
-    ds = ImageDraw.Draw(shadow)
-    dh = ImageDraw.Draw(fill_hl)
-    y = pad
-    for line in lines:
-        x = (Wd - width(line)) / 2
-        for w in line:
-            ds.text((x, y + 12), w, font=f, fill=255, stroke_width=stroke, stroke_fill=255)
-            d.text((x, y), w, font=f, fill=(255, 255, 255, 255), stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
-            if w in hl:
-                dh.text((x, y), w, font=f, fill=255)
-            x += f.getlength(w) + space
-        y += lh * 0.98
-    shadow = shadow.filter(ImageFilter.GaussianBlur(10))
-    sh = Image.new("RGBA", (Wd, Ht), (0, 0, 0, 0))
-    sh.putalpha(shadow.point(lambda v: int(v * 0.65)))
-    if gold:
-        g = gradient_img(Wd, Ht, np.array([255, 240, 140.]), np.array([255, 150, 20.]))
-    else:
-        g = gradient_img(Wd, Ht, np.array(color_hl, float), np.array([255, 170, 40.]))
-    sprite.paste(g, (0, 0), fill_hl)
-    return Image.alpha_composite(sh, sprite)
-
-
-@lru_cache(256)
-def word_caption_sprite(words, revealed, active, size=128):
-    """words: tuple of strings. Draw the first `revealed` words; `active` gets the yellow gradient + scale."""
-    f = font(F_ANTON, size)
-    big = len(words) == 1 and words[0].startswith("#")
-    if big:
-        f = font(F_ANTON, 230)
-    stroke = max(8, f.size // 10)
-    space = f.getlength(" ")
-    maxw = 960
-    widths = [f.getlength(w) for w in words]
-
-    def line_w(ix):
-        return sum(widths[i] for i in ix) + space * (len(ix) - 1)
-
-    lines = [list(range(len(words)))]
-    if line_w(lines[0]) > maxw and len(words) > 1:
-        best = min(range(1, len(words)), key=lambda k: max(line_w(range(k)), line_w(range(k, len(words)))))
-        lines = [list(range(best)), list(range(best, len(words)))]
-    while max(line_w(l) for l in lines) > maxw:
-        f = font(F_ANTON, f.size - 6)
-        stroke = max(8, f.size // 10)
-        space = f.getlength(" ")
-        widths = [f.getlength(w) for w in words]
-    asc, desc = f.getmetrics()
-    lh = int((asc + desc) * 0.98)
-    pad = stroke + 34
-    Wd = int(max(line_w(l) for l in lines) + pad * 2)
-    Ht = int(lh * len(lines) + pad * 2)
-    sprite = Image.new("RGBA", (Wd, Ht), (0, 0, 0, 0))
-    shadow = Image.new("L", (Wd, Ht), 0)
-    hlmask = Image.new("L", (Wd, Ht), 0)
-    d, ds, dh = ImageDraw.Draw(sprite), ImageDraw.Draw(shadow), ImageDraw.Draw(hlmask)
-    y = pad
-    for line in lines:
-        x = (Wd - line_w(line)) / 2
-        for i in line:
-            if i < revealed:
-                w = words[i]
-                ds.text((x, y + 12), w, font=f, fill=255, stroke_width=stroke, stroke_fill=255)
-                d.text((x, y), w, font=f, fill=(255, 255, 255, 255), stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
-                if i == active or big:
-                    dh.text((x, y), w, font=f, fill=255)
-            x += widths[i] + space
-        y += lh
-    sh = Image.new("RGBA", (Wd, Ht), (0, 0, 0, 0))
-    sh.putalpha(shadow.filter(ImageFilter.GaussianBlur(10)).point(lambda v: int(v * 0.7)))
-    if big:
-        g = gradient_img(Wd, Ht, PINK, ORANGE)
-    else:
-        g = gradient_img(Wd, Ht, np.array(YELLOW, float), np.array([255, 170, 40.]))
-    sprite.paste(g, (0, 0), hlmask)
-    return Image.alpha_composite(sh, sprite)
 
 
 def star_points(cx, cy, r1, r2, n=5, rot=-90):
@@ -334,6 +215,27 @@ def icon_sprite(name):
     elif name == "share":
         d.polygon([(c + 140, c - 10), (c + 10, c - 120), (c + 10, c - 60), (c - 130, c - 30), (c - 140, c + 110),
                    (c - 60, c + 30), (c + 10, c + 40), (c + 10, c + 100)], fill=W_)
+    elif name == "car":
+        d.rounded_rectangle([c - 150, c - 10, c + 150, c + 60], 24, fill=W_)
+        d.polygon([(c - 95, c - 10), (c - 55, c - 75), (c + 55, c - 75), (c + 100, c - 10)], fill=W_)
+        d.polygon([(c - 70, c - 18), (c - 42, c - 62), (c - 5, c - 62), (c - 5, c - 18)], fill=(18, 8, 28))
+        d.polygon([(c + 8, c - 18), (c + 8, c - 62), (c + 45, c - 62), (c + 75, c - 18)], fill=(18, 8, 28))
+        for dx in (-85, 85):
+            d.ellipse([c + dx - 34, c + 30, c + dx + 34, c + 98], fill=(18, 8, 28))
+            d.ellipse([c + dx - 20, c + 44, c + dx + 20, c + 84], fill=O)
+        d.rectangle([c + 128, c + 5, c + 150, c + 22], fill=Y)
+        d.rectangle([c - 150, c + 5, c - 132, c + 22], fill=R)
+    elif name == "heart":
+        d.ellipse([c - 120, c - 100, c + 5, c + 25], fill=P)
+        d.ellipse([c - 5, c - 100, c + 120, c + 25], fill=P)
+        d.polygon([(c - 116, c - 20), (c + 116, c - 20), (c, c + 125)], fill=P)
+        d.line([(c + 5, c - 75), (c - 22, c - 25), (c + 18, c + 10), (c - 10, c + 60)], fill=(18, 8, 28), width=14)
+    elif name == "gun":
+        d.rectangle([c - 130, c - 60, c + 120, c - 15], fill=W_)
+        d.rectangle([c + 95, c - 75, c + 112, c - 60], fill=W_)
+        d.polygon([(c - 120, c - 15), (c - 40, c - 15), (c - 62, c + 110), (c - 135, c + 110)], fill=W_)
+        d.arc([c - 50, c - 30, c + 10, c + 40], 0, 180, fill=W_, width=12)
+        d.rectangle([c - 100, c - 52, c + 100, c - 44], fill=O)
     return im.resize((S, S), Image.LANCZOS)
 
 
@@ -468,33 +370,308 @@ def scaled(sprite, s, rot=0.0):
 
 
 
-# =================================================================== overlay frame
-def icon_layout(slot, t):
-    return 900 + 10 * math.sin(t * 2.4), 700 + 8 * math.sin(t * 3.1)
+def draw_minimap(canvas, t):
+    S = 230
+    r = 98
+    yy, xx = np.mgrid[0:S, 0:S].astype(np.float32) - S / 2
+    rr = np.sqrt(xx ** 2 + yy ** 2)
+    ang = (np.degrees(np.arctan2(xx, -yy)) - t * 140) % 360
+    disc = (rr < r)
+    rgba = np.zeros((S, S, 4), np.float32)
+    rgba[..., :3] = np.array([10, 14, 30])
+    rgba[..., 3] = disc * 170
+    sweep = disc * np.clip(1 - ang / 70, 0, 1) * 0.5
+    rgba[..., :3] += sweep[..., None] * np.array([255, 120, 160])
+    rgba[..., 3] = np.maximum(rgba[..., 3], sweep * 255)
+    im = Image.fromarray(np.clip(rgba, 0, 255).astype(np.uint8), "RGBA")
+    d = ImageDraw.Draw(im)
+    c = S / 2
+    off = (t * 18) % 60
+    for k in range(-3, 4):   # moving road grid
+        y = c + k * 60 + off
+        d.line([c - r, y, c + r, y], fill=(90, 90, 120, 160), width=4)
+    d.line([c - 30, c - r, c + 10, c + r], fill=(110, 110, 140, 180), width=7)
+    rng = np.random.default_rng(3)
+    for i in range(5):
+        a = rng.uniform(0, 6.28) + t * 0.2
+        rr_ = rng.uniform(30, 85)
+        bx, by = c + math.cos(a) * rr_, c + math.sin(a) * rr_
+        col = (255, 60, 60, 255) if i % 2 else (60, 140, 255, 255)
+        if (t * 3 + i) % 2 < 1.4:
+            d.ellipse([bx - 6, by - 6, bx + 6, by + 6], fill=col)
+    d.polygon([(c, c - 16), (c + 12, c + 12), (c, c + 5), (c - 12, c + 12)], fill="white")
+    mask = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(mask).ellipse([c - r, c - r, c + r, c + r], fill=255)
+    im.putalpha(Image.fromarray(np.minimum(np.asarray(im.getchannel("A")), np.asarray(mask))))
+    d = ImageDraw.Draw(im)
+    d.ellipse([c - r, c - r, c + r, c + r], outline=(255, 255, 255, 200), width=4)
+    canvas.alpha_composite(im, (40, 1390))
+    dd = ImageDraw.Draw(canvas)
+    dd.rounded_rectangle([60, 1630, 250, 1642], 6, fill=(0, 0, 0, 150))
+    dd.rounded_rectangle([60, 1630, 60 + 190 * (0.8 + 0.15 * math.sin(t * 0.7)), 1642], 6, fill=(90, 220, 110, 230))
+    dd.rounded_rectangle([60, 1650, 250, 1662], 6, fill=(0, 0, 0, 150))
+    dd.rounded_rectangle([60, 1650, 60 + 190 * 0.6, 1662], 6, fill=(80, 170, 255, 230))
 
 
-def draw_icons(canvas, seg, t):
-    lt = t - seg["start"]
-    cur = None
-    for at, name, slot in seg.get("icons", []):
-        if lt >= at:
-            cur = (at, name, slot)
-    if not cur:
+
+# =================================================================== decorative FX layer
+WHITE = (255, 255, 255)
+
+
+def fx_alpha(age, dur, fin=0.12, fout=0.2):
+    return clamp(age / fin) * clamp((dur - age) / fout)
+
+
+@lru_cache(None)
+def glow_dot(r, col):
+    S = r * 6
+    im = Image.new("RGBA", (S, S), col + (0,))
+    m = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(m).ellipse([S / 2 - r, S / 2 - r, S / 2 + r, S / 2 + r], fill=255)
+    m = m.filter(ImageFilter.GaussianBlur(r * 0.9))
+    core = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(core).ellipse([S / 2 - r * 0.35, S / 2 - r * 0.35, S / 2 + r * 0.35, S / 2 + r * 0.35], fill=255)
+    m = Image.fromarray(np.maximum(np.asarray(m), np.asarray(core.filter(ImageFilter.GaussianBlur(1)))))
+    im.putalpha(m)
+    return im
+
+
+_RNG = np.random.default_rng(11)
+AMBIENT = [dict(x=_RNG.uniform(0, W), y=_RNG.uniform(0, H), v=_RNG.uniform(25, 70), r=int(_RNG.choice([3, 4, 5, 7])),
+                ph=_RNG.uniform(0, 6.28), col=[(255, 46, 136), (255, 154, 31), (255, 220, 180)][i % 3]) for i in range(34)]
+
+
+def draw_ambient(canvas, t):
+    for p in AMBIENT:
+        y = (p["y"] - t * p["v"]) % (H + 100) - 50
+        x = p["x"] + 22 * math.sin(t * 0.8 + p["ph"])
+        a = 0.35 + 0.35 * math.sin(t * 2.2 + p["ph"])
+        paste_center(canvas, glow_dot(p["r"], p["col"]), x, y, max(0.05, a))
+
+
+def draw_burst(canvas, cx, cy, age, n=26, seed=0, dist=330, dur=0.9):
+    if not 0 <= age < dur:
         return
-    at, name, slot = cur
-    age = lt - at
-    s = elastic_out(age / 0.6) * clamp((seg["end"] - t) / 0.12) * 0.72
+    rng = np.random.default_rng(seed)
+    k = ease_out(age / dur)
+    for i in range(n):
+        ang = rng.uniform(0, 2 * math.pi)
+        dd = dist * rng.uniform(0.4, 1.0) * k
+        col = [(255, 46, 136), (255, 154, 31), (255, 230, 120)][i % 3]
+        paste_center(canvas, glow_dot(int(rng.choice([4, 6, 8])), col), cx + math.cos(ang) * dd, cy + math.sin(ang) * dd,
+                     max(0.02, 1 - age / dur))
+
+
+@lru_cache(None)
+def ring_sprite(r, width=10):
+    S = r * 2 + 80
+    m = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(m).ellipse([40, 40, S - 40, S - 40], outline=255, width=width)
+    g = m.filter(ImageFilter.GaussianBlur(14))
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    grad = gradient_img(S, S, PINK, ORANGE, horizontal=True)
+    glow = Image.new("RGBA", (S, S), (255, 90, 110, 0))
+    glow.putalpha(g)
+    im = Image.alpha_composite(im, glow)
+    im.paste(grad, (0, 0), m)
+    return im
+
+
+def draw_ping(canvas, x, y, age, dur, base=80):
+    a = fx_alpha(age, dur)
+    for k in range(3):
+        ph = (age * 1.2 + k / 3) % 1
+        paste_center(canvas, scaled(ring_sprite(base), 0.4 + ph * 1.1), x, y, a * (1 - ph))
+    paste_center(canvas, scaled(ring_sprite(base // 2, 8), 1 + 0.06 * math.sin(age * 9)), x, y, a)
+
+
+@lru_cache(None)
+def bignum_sprite(n):
+    f = font(F_ANTON, 300)
+    txt = f"#{n}"
+    w = int(f.getlength(txt)) + 120
+    h = 420
+    m = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(m).text((w / 2, h / 2), txt, font=f, anchor="mm", fill=255)
+    st = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(st).text((w / 2, h / 2), txt, font=f, anchor="mm", fill=255, stroke_width=16, stroke_fill=255)
+    glow = st.filter(ImageFilter.GaussianBlur(26))
+    im = Image.new("RGBA", (w, h), (255, 80, 100, 0))
+    im.putalpha(glow.point(lambda v: int(v * 0.9)))
+    blk = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    blk.paste((15, 5, 20, 255), (0, 0), st)
+    im = Image.alpha_composite(im, blk)
+    im.paste(gradient_img(w, h, np.array([255, 70, 150.]), np.array([255, 170, 40.])), (0, 0), m)
+    return im
+
+
+@lru_cache(None)
+def label_sprite(text, icon, big=False):
+    f = font(F_ANTON, 92 if big else 70)
+    tw = int(f.getlength(text))
+    ic = 118 if big else 96
+    pad = 34
+    w = tw + ic + pad * 3
+    h = (150 if big else 124)
+    S = (w + 80, h + 80)
+    im = Image.new("RGBA", S, (0, 0, 0, 0))
+    box = [40, 40, 40 + w, 40 + h]
+    g = Image.new("L", S, 0)
+    ImageDraw.Draw(g).rounded_rectangle(box, h // 2, fill=255)
+    glow = Image.new("RGBA", S, (255, 80, 110, 0))
+    glow.putalpha(g.filter(ImageFilter.GaussianBlur(18)).point(lambda v: int(v * 0.75)))
+    im = Image.alpha_composite(im, glow)
+    im.paste(gradient_img(S[0], S[1], PINK, ORANGE, horizontal=True), (0, 0), g)
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([box[0] + 6, box[1] + 6, box[2] - 6, box[3] - 6], h // 2 - 6, fill=(14, 6, 22, 235))
+    if icon:
+        isp = icon_sprite(icon).resize((ic, ic), Image.LANCZOS)
+        im.alpha_composite(isp, (40 + pad - 6, 40 + (h - ic) // 2))
+    d.text((40 + pad + ic + pad - 6, 40 + h / 2 + 2), text, font=f, fill="white", anchor="lm")
+    return im
+
+
+def shine(sprite, k):
+    """diagonal light sweep across a sprite, k in 0..1"""
+    w, h = sprite.size
+    band = Image.new("L", (w, h), 0)
+    x = -w * 0.3 + k * w * 1.6
+    ImageDraw.Draw(band).polygon([(x, 0), (x + 60, 0), (x - 40, h), (x - 100, h)], fill=170)
+    band = band.filter(ImageFilter.GaussianBlur(8))
+    band = Image.fromarray(np.minimum(np.asarray(band), np.asarray(sprite.getchannel("A"))))
+    white = Image.new("RGBA", (w, h), (255, 255, 255, 0))
+    white.putalpha(band)
+    return Image.alpha_composite(sprite, white)
+
+
+@lru_cache(None)
+def tag_sprite(text):
+    f = font(F_ANTON, 58)
+    w = int(f.getlength(text)) + 64
+    h = 84
+    im = Image.new("RGBA", (w + 40, h + 40), (0, 0, 0, 0))
+    g = Image.new("L", im.size, 0)
+    ImageDraw.Draw(g).rounded_rectangle([20, 20, 20 + w, 20 + h], 18, fill=255)
+    glow = Image.new("RGBA", im.size, (255, 80, 110, 0))
+    glow.putalpha(g.filter(ImageFilter.GaussianBlur(12)))
+    im = Image.alpha_composite(im, glow)
+    im.paste(gradient_img(im.width, im.height, PINK, ORANGE, horizontal=True), (0, 0), g)
+    ImageDraw.Draw(im).text((20 + w / 2, 20 + h / 2 + 2), text, font=f, fill="white", anchor="mm",
+                            stroke_width=3, stroke_fill=(60, 0, 30))
+    return im
+
+
+def draw_tag(canvas, e, age):
+    a = fx_alpha(age, e["dur"])
+    x, y = e["x"], e["y"]
+    draw_ping(canvas, x, y, age, e["dur"], base=70)
+    sgn = 1 if e["side"] == "r" else -1
+    k = back_out(age / 0.45)
+    tx, ty = x + sgn * 190 * k, y - 90 * k
+    d = ImageDraw.Draw(canvas)
+    pts = [(x + sgn * 40, y - 30), (x + sgn * 150 * k, ty + 40), (tx, ty + 40)]
+    d.line(pts, fill=(255, 255, 255, int(230 * a)), width=7, joint="curve")
+    d.ellipse([x - 9, y - 9, x + 9, y + 9], fill=(255, 255, 255, int(255 * a)))
+    paste_center(canvas, scaled(tag_sprite(e["text"]), 0.6 + 0.4 * k), tx + sgn * 60, ty + 40, a)
+
+
+@lru_cache(None)
+def notif_sprite(title, msg):
+    w, h = 520, 118
+    im = Image.new("RGBA", (w + 40, h + 40), (0, 0, 0, 0))
+    g = Image.new("L", im.size, 0)
+    ImageDraw.Draw(g).rounded_rectangle([20, 20, 20 + w, 20 + h], 26, fill=255)
+    glow = Image.new("RGBA", im.size, (255, 80, 110, 0))
+    glow.putalpha(g.filter(ImageFilter.GaussianBlur(14)).point(lambda v: int(v * 0.6)))
+    im = Image.alpha_composite(im, glow)
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([20, 20, 20 + w, 20 + h], 26, fill=(18, 10, 28, 235), outline=(255, 120, 90, 255), width=3)
+    isp = icon_sprite("comment").resize((84, 84), Image.LANCZOS)
+    im.alpha_composite(isp, (36, 20 + (h - 84) // 2))
+    d.text((138, 20 + 40), title, font=font(F_ANTON, 44), fill="white", anchor="lm")
+    d.text((138, 20 + 84), msg, font=font(F_MONT, 26), fill=(255, 190, 140), anchor="lm")
+    d.ellipse([w - 24, 40, w - 4, 60], fill=(255, 60, 90))
+    return im
+
+
+def draw_notif(canvas, e, age):
+    a = fx_alpha(age, e["dur"], 0.1, 0.3)
+    k = back_out(age / 0.4)
+    sp = notif_sprite(e["title"], e["msg"])
+    x = W + 300 - (W + 300 - 760) * k
+    y = 560 + e["slot"] * 140
+    shake = 6 * math.sin(age * 60) * max(0, 1 - age / 0.35)
+    paste_center(canvas, sp, x + shake, y, a)
+
+
+def draw_meter(canvas, e, age):
+    a = fx_alpha(age, e["dur"])
+    k = ease_in_out((age - 0.35) / 1.4)
+    v = e["v0"] + (e["v1"] - e["v0"]) * k
+    cx, cy, w = W / 2, 1120, 600
+    d = ImageDraw.Draw(canvas)
+    d.rounded_rectangle([cx - w / 2 - 20, cy - 80, cx + w / 2 + 20, cy + 50], 26, fill=(14, 6, 22, int(215 * a)))
+    d.text((cx - w / 2, cy - 48), e["label"], font=font(F_ANTON, 44), fill=(255, 255, 255, int(255 * a)), anchor="lm")
+    d.text((cx + w / 2, cy - 48), f"{int(v * 100)}%", font=font(F_ANTON, 44), fill=(255, 190, 120, int(255 * a)), anchor="rm")
+    d.rounded_rectangle([cx - w / 2, cy, cx + w / 2, cy + 26], 13, fill=(255, 255, 255, int(60 * a)))
+    col = tuple(int(c) for c in (PINK * (1 - v) + np.array([90, 220, 110.]) * v)) + (int(255 * a),)
+    d.rounded_rectangle([cx - w / 2, cy, cx - w / 2 + max(26, w * v), cy + 26], 13, fill=col)
+
+
+def draw_stars(canvas, e, age):
+    a = fx_alpha(age, e["dur"])
+    n = e["n"]
+    size = 70
+    x0 = W / 2 - 6 * size * 0.92 / 2 + size / 2
+    flash = math.sin(age * 2 * math.pi * 4) > 0
+    lose = e.get("lose")
+    for i in range(6):
+        on = i < n and age >= i * 0.09
+        if lose and age > e["dur"] - 0.7:
+            on = on and (i < n - int((age - (e["dur"] - 0.7)) / 0.12))
+        sp = star_sprite(on, bool(on and flash))
+        pop = back_out(clamp((age - i * 0.09) / 0.25)) if on else 1.0
+        paste_center(canvas, scaled(sp, max(0.05, pop * 0.64)), x0 + i * size * 0.92, 500, a)
+    if age < 0.6:
+        canvas.alpha_composite(edge_glow("l" if flash else "r"), (0 if flash else W - 260, 0))
+
+
+def draw_money(canvas, e, age):
+    a = fx_alpha(age, e["dur"])
+    k = ease_out(age / e["dur"])
+    f = font(F_ANTON, 120)
+    sp = money_sprite(e["text"])
+    paste_center(canvas, scaled(sp, 0.7 + 0.3 * back_out(age / 0.3)), 760, 900 - 160 * k, a)
+    draw_burst(canvas, 760, 900, age, n=18, seed=7, dist=220, dur=0.8)
+
+
+@lru_cache(None)
+def money_sprite(text):
+    f = font(F_ANTON, 120)
+    w = int(f.getlength(text)) + 80
+    im = Image.new("RGBA", (w, 200), (0, 0, 0, 0))
+    m = Image.new("L", im.size, 0)
+    ImageDraw.Draw(m).text((w / 2, 100), text, font=f, anchor="mm", fill=255, stroke_width=10, stroke_fill=255)
+    glow = Image.new("RGBA", im.size, (80, 255, 120, 0))
+    glow.putalpha(m.filter(ImageFilter.GaussianBlur(16)))
+    im = Image.alpha_composite(im, glow)
+    ImageDraw.Draw(im).text((w / 2, 100), text, font=f, anchor="mm", fill=(120, 255, 140), stroke_width=8, stroke_fill=(0, 40, 10))
+    return im
+
+
+def draw_icon(canvas, e, age, slot):
+    s = elastic_out(age / 0.6) * clamp((e["dur"] - age) / 0.15) * 0.8
     if s <= 0.01:
         return
-    cx, cy = icon_layout(slot, t)
-    sp = scaled(icon_sprite(name), s * (1 + 0.04 * math.sin(t * 6)), 6 * math.sin(t * 4))
-    paste_center(canvas, sp, cx, cy)
+    cx, cy = 905 + 10 * math.sin(age * 2.4), 820 - slot * 230 + 8 * math.sin(age * 3.1)
+    paste_center(canvas, scaled(ring_sprite(90, 6), 1.0 + 0.5 * ((age * 1.3) % 1)), cx, cy, max(0, 0.7 * (1 - (age * 1.3) % 1)) * min(1, s))
+    paste_center(canvas, scaled(icon_sprite(e["name"]), s * (1 + 0.04 * math.sin(age * 6)), 6 * math.sin(age * 4)), cx, cy)
     d = ImageDraw.Draw(canvas)
-    for j in range(3):   # chevrons pointing at the icon
-        ph = (t * 2.5 - j * 0.25) % 1
-        a = int(255 * (1 - ph) * min(1, s / 0.72))
-        x = cx - 115 - j * 30 + ph * 18
-        d.line([x - 12, cy - 19, x + 5, cy, x - 12, cy + 19], fill=(255, 225, 77, a), width=9, joint="curve")
+    for j in range(3):
+        ph = (age * 2.5 - j * 0.25) % 1
+        al = int(255 * (1 - ph) * min(1, s / 0.8))
+        x = cx - 125 - j * 30 + ph * 18
+        d.line([x - 12, cy - 19, x + 5, cy, x - 12, cy + 19], fill=(255, 225, 77, al), width=9, joint="curve")
 
 
 def render_overlay(t):
@@ -502,10 +679,11 @@ def render_overlay(t):
     seg = seg_at(t)
     lt = t - seg["start"]
     idx = SEGMENTS.index(seg)
-
-    # soft top/bottom gradient so white text + ring always read on bright gameplay
     canvas.alpha_composite(top_shade())
+    draw_ambient(canvas, t)
+    draw_minimap(canvas, t)
 
+    # counter
     if seg["counter"] is not None:
         n = seg["counter"]
         prev = (SEGMENTS[idx - 1]["counter"] or 0) if idx else 0
@@ -514,7 +692,9 @@ def render_overlay(t):
         prog_from = 0 if intro else prev / 10
         prog = (prog_from + (n / 10 - prog_from) * ease_out(lt / 0.5)) if n else 0.0
         changed = n != prev and not intro
-        pop = 1 + 0.28 * (1 - elastic_out(lt / 0.7)) if changed else 1.0
+        pop = 1 + 0.3 * (1 - elastic_out(lt / 0.7)) if changed else 1.0
+        if changed and lt < 0.5:
+            paste_center(canvas, scaled(ring_sprite(110), 1 + lt * 2.2), W / 2, 205, 1 - lt / 0.5)
         paste_center(canvas, counter_sprite(n, prog, t, max(0.02, pop * appear)), W / 2, 205)
         pa = clamp((lt - 0.15) / 0.3) if intro else 1.0
         paste_center(canvas, scaled(pill_sprite(), 0.6 + 0.4 * ease_out(pa)), W / 2, 360, pa)
@@ -528,41 +708,53 @@ def render_overlay(t):
                 r = 8 + 3 * abs(math.sin(t * 5))
             d.ellipse([x - r, 418 - r, x + r, 418 + r], fill=col)
 
-    cap = next((c for c in CAPS if c["start"] <= t < c["end"]), None)
-    if cap:
-        age = t - cap["start"]
-        words = tuple(w for w, _, _ in cap["words"])
-        revealed = max(1, sum(1 for _, ws, _ in cap["words"] if ws <= t + 0.03))
-        active = max(i for i, (_, ws, _) in enumerate(cap["words"]) if ws <= t + 0.03) if revealed else 0
-        if t > cap["words"][-1][2] + 0.15:
-            active = -1
-        sp = word_caption_sprite(words, revealed, active)
-        if age < 0.08:
-            s = 0.6 + 0.55 * ease_out(age / 0.08)
-        elif age < 0.18:
-            s = 1.15 - 0.15 * ease_in_out((age - 0.08) / 0.10)
-        else:
-            s = 1.0
-        # tiny bump on every new word
-        wa = t - cap["words"][min(max(active, 0), len(words) - 1)][1]
-        if 0 <= wa < 0.1 and age >= 0.18:
-            s *= 1 + 0.04 * (1 - wa / 0.1)
-        rot = -3 * (1 - ease_out(age / 0.18))
-        y = 1060 - 26 * (1 - ease_out(age / 0.18))
-        paste_center(canvas, scaled(sp, s, rot), W / 2, y)
-
-    draw_icons(canvas, seg, t)
+    # timed decorative FX
+    icon_slot = 0
+    for e in FX:
+        age = t - e["t"]
+        if not 0 <= age < e["dur"]:
+            continue
+        k = e["kind"]
+        if k == "bignum":
+            sc = elastic_out(age / 0.55) if age < 0.8 else 1 + (age - 0.8) * 1.2
+            al = 1.0 if age < 0.8 else max(0, 1 - (age - 0.8) / 0.35)
+            paste_center(canvas, scaled(ring_sprite(200, 12), 0.5 + age * 1.6), W / 2, 960, max(0, 1 - age / 0.9))
+            draw_burst(canvas, W / 2, 960, age, n=30, seed=e["n"], dist=420)
+            paste_center(canvas, scaled(bignum_sprite(e["n"]), max(0.05, sc), -6 * (1 - ease_out(age / 0.4))), W / 2, 960, al)
+        elif k == "label":
+            kk = back_out(age / 0.45)
+            sp = label_sprite(e["text"], e.get("icon"), e.get("big", False))
+            if 0.25 < age < 1.05:
+                sp = shine(sp, (age - 0.25) / 0.8)
+            x = -sp.width / 2 + (W / 2 + sp.width / 2) * kk
+            out = clamp((age - (e["dur"] - 0.25)) / 0.25)
+            paste_center(canvas, scaled(sp, 1 - 0.3 * out), x, 1270 + 6 * math.sin(age * 3), 1 - out)
+        elif k == "tag":
+            draw_tag(canvas, e, age)
+        elif k == "ping":
+            draw_ping(canvas, e["x"], e["y"], age, e["dur"])
+        elif k == "notif":
+            draw_notif(canvas, e, age)
+        elif k == "meter":
+            draw_meter(canvas, e, age)
+        elif k == "stars":
+            draw_stars(canvas, e, age)
+        elif k == "money":
+            draw_money(canvas, e, age)
+        elif k == "icon":
+            draw_icon(canvas, e, age, icon_slot)
+            icon_slot += 1
 
     tr = seg["transition"]
     if tr == "flash" and lt < 0.3:
         canvas.alpha_composite(Image.new("RGBA", (W, H), (255, 255, 255, int(255 * (1 - lt / 0.3) ** 1.5))))
-    if tr == "light_leak" and lt < 0.7:
-        k = lt / 0.7
+    if lt < 0.45 and idx > 0:   # glow sweep on every transition
+        k = lt / 0.45
         yy, xx = np.mgrid[0:H // 8, 0:W // 8]
         cx = -20 + k * (W // 8 + 40)
-        g = np.clip(1 - np.sqrt((xx - cx) ** 2 + (yy - H // 16) ** 2 * 0.3) / 90, 0, 1)
-        a = Image.fromarray((g * 200 * math.sin(math.pi * k)).astype(np.uint8)).resize((W, H), Image.BILINEAR)
-        leak = Image.new("RGBA", (W, H), (255, 140, 60, 0))
+        g = np.clip(1 - np.sqrt((xx - cx) ** 2 + (yy - H // 16) ** 2 * 0.25) / 80, 0, 1)
+        a = Image.fromarray((g * 170 * math.sin(math.pi * k)).astype(np.uint8)).resize((W, H), Image.BILINEAR)
+        leak = Image.new("RGBA", (W, H), (255, 120, 80, 0))
         leak.putalpha(a)
         canvas.alpha_composite(leak)
     return canvas
@@ -571,7 +763,7 @@ def render_overlay(t):
 @lru_cache(None)
 def top_shade():
     a = np.zeros((H, 1), np.float32)
-    a[:520, 0] = np.linspace(0.55, 0, 520) ** 1.5
+    a[:520, 0] = np.linspace(0.5, 0, 520) ** 1.5
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     im.putalpha(Image.fromarray((np.repeat(a, W, 1) * 255).astype(np.uint8)))
     return im
@@ -584,14 +776,20 @@ def make_frame(i):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--still", type=float)
+    ap.add_argument("--bg", help="video to composite under --still (e.g. out/bg_cut.mp4)")
     ap.add_argument("--out")
     ap.add_argument("-j", type=int, default=os.cpu_count())
     a = ap.parse_args()
     os.makedirs(os.path.join(ROOT, "out"), exist_ok=True)
     if a.still is not None:
-        bg = Image.new("RGBA", (W, H), (70, 70, 78, 255))
+        if a.bg:
+            raw = subprocess.check_output(["ffmpeg", "-loglevel", "error", "-ss", str(a.still), "-i", a.bg, "-frames:v", "1",
+                                           "-f", "rawvideo", "-pix_fmt", "rgba", "-"])
+            bg = Image.frombytes("RGBA", (W, H), raw)
+        else:
+            bg = Image.new("RGBA", (W, H), (70, 70, 78, 255))
         bg.alpha_composite(render_overlay(a.still))
-        p = a.out or os.path.join(ROOT, "out", f"overlay_{a.still:05.2f}.png")
+        p = a.out or os.path.join(ROOT, "out", f"still_{a.still:05.2f}.png")
         bg.convert("RGB").save(p)
         print(p)
         return
@@ -600,11 +798,11 @@ def main():
            "-r", str(FPS), "-i", "-", "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le",
            "-vendor", "apl0", out]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-    n = int(DURATION * FPS)
+    n = int(round(DURATION * FPS))
     with Pool(a.j) as pool:
         for k, data in enumerate(pool.imap(make_frame, range(n), chunksize=8)):
             proc.stdin.write(data)
-            if k % 150 == 0:
+            if k % 300 == 0:
                 print(f"{k}/{n}", flush=True)
     proc.stdin.close()
     proc.wait()

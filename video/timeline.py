@@ -26,8 +26,8 @@ with open(os.path.join(ROOT, "production", "vo_words.json"), encoding="utf-8") a
 WORDS = [("fuite," if w[0] == "fuite" else w[0], w[1], w[2]) for w in WORDS]
 
 DURATION = 69.56
-PILL_TEXT = "DÉTAILS QUE PERSONNE NE CONNAÎT"
-TITLE_LABEL = "DÉTAILS"
+PILL_TEXT = "GTA 6 • CRAZY DETAILS"
+TITLE_LABEL = "DETAILS"
 
 
 def _num_time(n):
@@ -86,41 +86,52 @@ SHOT_LIST = [
     # 3 gun in the street
     (19.00, "c3", 12.2, "handheld", ""),
     (21.00, "c2", 21.5, "pan_r", ""),
-    # 4 hand-to-hand
+    # 4 hand-to-hand: Lucia, then Jason
     (23.02, "c4", 12.6, "push_in", ""),
     (25.40, "c2", 7.2, "push_in", ""),
-    (27.50, "c1", 9.45, "crash_zoom", ""),
-    (28.50, "c1", 8.4, "push_in", ""),
+    (27.95, "c1", 9.45, "crash_zoom", ""),
+    (28.60, "c1", 8.4, "push_in", ""),
     # 5 cap / glasses
     (29.52, "c1", 16.95, "push_in", ""),
     (30.42, "c4", 6.9, "pan_l", ""),
     (32.70, "c2", 34.0, "push_in", ""),
     # 6 store robbery
     (34.98, "c3", 0.3, "push_in", "badge"),
-    (36.60, "c1", 13.5, "push_in", ""),
-    (38.00, "c3", 6.5, "crash_zoom", ""),
-    (40.50, "c1", 4.6, "pan_r", ""),
+    (36.60, "c1", 13.48, "push_in", ""),
+    (37.75, "c3", 6.5, "crash_zoom", ""),
+    (40.50, "c1", 4.53, "pan_r", ""),
     # 7 clothes in the trunk / lose the cops
     (41.76, "c2", 18.0, "pan_l", ""),
-    (43.90, "c3", 14.3, "handheld", ""),
+    (43.90, "c3", 14.0, "handheld", ""),
     # 8 arrested / weapons
     (45.96, "c3", 2.0, "push_in", "badge"),
     (48.20, "c3", 11.3, "handheld", ""),
     (49.10, "c1", 19.0, "push_in", ""),
-    (50.90, "c2", 4.0, "pull_out", ""),
+    (50.65, "c2", 4.0, "pull_out", ""),
     # 9 car delivered, valet leaves on a scooter
-    (52.72, "c4", 4.0, "pan_r", "badge"),
-    (54.30, "c4", 0.3, "push_in", "badge"),
+    (52.72, "c4", 3.9, "pan_r", "badge"),
+    (55.40, "c4", 0.0, "push_in", "badge"),
     # 10 NPC robberies
-    (56.62, "c1", 13.5, "crash_zoom", "flip"),
-    (58.10, "c3", 9.0, "handheld", "flip"),
+    (56.62, "c1", 13.48, "crash_zoom", "flip"),
+    (57.77, "c3", 9.0, "handheld", "flip"),
     (60.20, "c3", 6.8, "push_in", "flip"),
-    # outro
+    # outro: Jason, Lucia, skydive
     (62.22, "c2", 6.0, "push_in", ""),
-    (63.30, "c2", 2.0, "push_in", "badge"),
+    (63.00, "c2", 1.7, "push_in", "badge flip"),
     (64.90, "c5", 3.4, "pull_out", "badge"),
     (67.20, "c5", 6.0, "push_in", "badge"),
 ]
+
+# Source ranges that contain logos, title cards, "PRE-LOAD NOW", PS5 splash or end cards.
+# A shot (including its transition overlap) may never touch these.
+BANNED = {
+    "c1": [(0.0, 2.0), (6.05, 8.37), (14.65, 16.9), (20.55, 99)],
+    "c2": [(40.95, 99)],
+    "c3": [(16.55, 99)],
+    "c4": [(15.85, 99)],
+    "c5": [(9.35, 99)],
+}
+XFADE_D = 0.25
 
 
 def all_shots():
@@ -128,6 +139,11 @@ def all_shots():
     for i, (t0, src, sin, cam, opts) in enumerate(SHOT_LIST):
         t1 = SHOT_LIST[i + 1][0] if i + 1 < len(SHOT_LIST) else DURATION
         seg = next(s for s in SEGMENTS if s["start"] <= t0 < s["end"])
+        last_in_seg = t1 >= seg["end"] - 1e-6 and seg is not SEGMENTS[-1]
+        src_out = sin + (t1 - t0) + (XFADE_D if last_in_seg else 0)
+        for b0, b1 in BANNED[src]:
+            if sin < b1 and src_out > b0:
+                raise ValueError(f"shot {i + 1} uses {src} {sin:.2f}-{src_out:.2f}s, overlapping banned {b0}-{b1}")
         out.append(dict(id=f"s{i + 1:02d}", seg=seg["id"], start=t0, end=t1, src=src, src_in=sin,
                         cam=cam, flip="flip" in opts, badge="badge" in opts))
     return out
@@ -160,3 +176,99 @@ def all_captions():
         out.append(dict(start=start, end=end, words=[(t.upper(), s, e) for t, s, e in ch],
                         text=" ".join(t.upper() for t, _, _ in ch)))
     return out
+
+
+# ------------------------------------------------------------------ decorative FX (NO narration text)
+def at(word, after=0.0):
+    """Start time of the first spoken word matching `word` (case/punctuation-insensitive) after `after`."""
+    key = word.lower().strip(".,?!")
+    for t, s, e in WORDS:
+        if s >= after - 1e-6 and t.lower().strip(".,?!").replace("’", "'") == key:
+            return s
+    raise KeyError(word)
+
+
+def _seg(sid):
+    return next(s for s in SEGMENTS if s["id"] == sid)
+
+
+def _fx():
+    S = {s["id"]: s["start"] for s in SEGMENTS}
+    fx = []
+    add = lambda t, kind, dur, **k: fx.append(dict(t=t, kind=kind, dur=dur, **k))  # noqa: E731
+    # big animated numbers on every spoken number
+    for s in SEGMENTS:
+        if s["id"].startswith("f"):
+            add(s["start"], "bignum", 1.15, n=s["counter"])
+    # hook
+    add(0.05, "label", 2.6, text="DID YOU KNOW?", icon="eye")
+    add(at("Lucia"), "tag", 2.4, text="LUCIA", x=640, y=470, side="l")
+    add(at("couple"), "icon", 1.2, name="heart")
+    # title
+    add(at("10"), "label", 2.6, text="10 CRAZY DETAILS", icon="controller", big=True)
+    # 1 relationship
+    f = S["f1"]
+    add(at("appel,", f), "notif", 3.6, title="LUCIA", msg="Missed call", slot=0)
+    add(at("SMS,", f), "notif", 2.9, title="LUCIA", msg="New message", slot=1)
+    add(at("chuter", f), "meter", 3.2, label="RELATIONSHIP", v0=0.85, v1=0.18)
+    add(at("chuter", f) + 0.1, "icon", 3.0, name="heart")
+    # 2 drive-by
+    f = S["f2"]
+    add(at("conduit,", f), "label", 2.4, text="DRIVE-BY MODE", icon="car")
+    add(at("tirer", f), "icon", 2.0, name="gun")
+    add(at("fuite,", f), "stars", 1.7, n=3)
+    # 3 gun in the street
+    f = S["f3"]
+    add(at("arme", f), "label", 2.6, text="HANDS OFF!", icon="gun")
+    add(at("passants", f), "icon", 2.0, name="eye")
+    add(at("arme", f), "stars", 3.2, n=2)
+    # 4 fighting styles
+    f = S["f4"]
+    add(at("main", f), "label", 2.4, text="FIGHT STYLES", icon="duo")
+    add(at("Lucia", f), "tag", 2.2, text="LUCIA", x=400, y=560, side="l")
+    add(at("Jason", f), "tag", 1.9, text="JASON", x=250, y=600, side="r")
+    # 5 cap / glasses
+    f = S["f5"]
+    add(f + 0.15, "ping", 1.0, x=540, y=760)
+    add(at("bagarre,", f), "label", 2.4, text="LOOT THEIR STYLE", icon="scan")
+    add(at("casquette", f), "ping", 1.6, x=150, y=980)
+    add(at("lunettes", f), "icon", 1.8, name="scan")
+    # 6 store robbery
+    f = S["f6"]
+    add(at("supérette,", f), "icon", 2.0, name="alarm")
+    add(at("coffre", f), "label", 2.5, text="SECRET SAFE", icon="cash")
+    add(at("coffre", f) + 0.1, "money", 1.8, text="+$25,000")
+    add(at("attends,", f), "ping", 1.1, x=540, y=900)
+    # 7 change your look
+    f = S["f7"]
+    add(at("vêtements", f), "label", 2.6, text="CHANGE YOUR LOOK", icon="scan")
+    add(at("voiture", f), "icon", 1.4, name="car")
+    add(at("semer", f) - 0.9, "stars", 1.6, n=4, lose=True)
+    # 8 weapon rules
+    f = S["f8"]
+    add(at("arrêter,", f), "stars", 1.8, n=5)
+    add(at("armes", f), "label", 2.6, text="WEAPON RULES", icon="slots")
+    add(at("perso", f), "icon", 2.0, name="slots")
+    # 9 car delivery
+    f = S["f9"]
+    add(at("appelles", f), "icon", 1.6, name="pin")
+    add(at("voiture,", f), "label", 2.4, text="CAR DELIVERY", icon="car")
+    add(at("trottinette.", f), "ping", 1.2, x=560, y=1050)
+    # 10 rob the robbers
+    f = S["f10"]
+    add(at("fou,", f), "icon", 1.6, name="flame")
+    add(at("braquent", f), "stars", 1.9, n=3)
+    add(at("magasins", f), "label", 2.4, text="ROB THE ROBBERS", icon="gun")
+    add(at("braqueurs.", f), "money", 1.6, text="+$$$")
+    # outro
+    f = S["cta"]
+    add(at("Jason", f), "tag", 0.9, text="JASON", x=330, y=650, side="r")
+    add(at("Lucia", f), "tag", 1.6, text="LUCIA", x=600, y=640, side="l")
+    add(at("Lucia", f) + 0.3, "label", 2.0, text="WHO'S YOUR MAIN?", icon="duo")
+    add(at("commentaire.", f), "icon", 1.8, name="comment")
+    add(at("Envoie", f), "icon", 1.9, name="share")
+    add(at("abonne-toi", f), "label", 2.3, text="FOLLOW FOR MORE", icon="controller")
+    return sorted(fx, key=lambda e: e["t"])
+
+
+FX = _fx()
