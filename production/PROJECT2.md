@@ -8,15 +8,16 @@ Sources:
 - `footage/voiceover2.mp3`: the voice-over.
 
 ## Vertical conversion (`video/reframe.py`)
-- **Full screen.** Every shot is a full-screen 9:16 crop of the 16:9 frame. It's never stretched, and there are no black bars or blurred fill.
-- **Face tracking.**
-  - OpenCV detects faces (frontal and both profiles) every 2nd frame.
-  - The tracker follows the main character, and frames two people together when both fit.
-  - The path is smoothed (median, Gaussian, speed limit) so the virtual camera glides.
-  - Dark or action shots with too few faces (under 40% of samples) use an editor-set framing instead.
-- **Quality.** Sub-pixel bicubic crop, light sharpening, same grade as the previous video.
-- **Dialogue subtitles.** In t2 shots only the top 87% of the frame is used, so the burned-in subtitles stay out.
-- **Clean frames.** Banned source ranges are listed in `video/projects/p2.py`: logos, "ROCKSTAR GAMES PRESENTS", title cards, credits overlays, animal credit cards and end cards. Shots touching them, transitions included, are refused.
+- **Per-shot framing.** All 44 shots were reviewed frame by frame. Each has a subject centre and the width that must stay visible: faces, upper bodies, both characters, or the main action.
+- **Full crop (30 shots).** A full-height 9:16 window, with gentle body and face tracking where the subject is reliably detected.
+- **Extended background (14 shots).** Used only where a 9:16 crop would cut characters or action: two-character shots, Jason polishing the boat, the crew, the sniper, the arm with the gun. The wider window stays sharp in the middle over a natural blurred extension of the same shot, in its own colours. No split screens, no side-by-side layouts.
+- **Image quality.**
+  - Light temporal noise reduction, then ESRGAN-slim x2 AI super-resolution.
+  - The model is converted to ONNX (`video/build_sr_onnx.py`) and run on the CPU in tiles.
+  - Wide windows are super-resolved at native resolution.
+  - Gentle sharpening, and small camera moves only (at most about 4% zoom).
+- **Clean frames.** Burned-in dialogue subtitles are cropped out (bottom 13%, 20% for the driving shot), and so is the channel watermark. Logos, title cards, credits and end cards are banned source ranges.
+- **Shot cache.** Rendered shots are cached in `out/shot_cache/`, so a fix re-renders only the shot that changed.
 
 ## Graphics (same identity as the previous video)
 No subtitles or text, and nothing in the centre. Small counter at the top, small "#n" in the upper-left corner, tiny icons at the edges synced to the voice-over: cash, gun, car, fuel pump, lightning bolt, alarm, padlock, moon, skull, heart, dumbbell, eye, door, paw, comment, share. Small wanted stars, edge particles, xfade transitions and camera moves.

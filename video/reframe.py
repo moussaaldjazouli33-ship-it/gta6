@@ -158,13 +158,13 @@ def _feather(h):
     return _FEATHER[h]
 
 
-def render(path, start, n, cam, punch, out_path, cx=0.5, w=0.32, subsafe=False, track=False, flip=False):
+def render(path, start, n, cam, punch, out_path, cx=0.5, w=0.32, subsafe=False, track=False, flip=False, bottom=0.87):
     frames = decode(path, start, n)
     if flip:
         frames = np.ascontiguousarray(frames[:, :, ::-1])
     extended = w > 0.33
     top0 = 0.05 * SH if (subsafe and extended) else 0.0
-    bot = 0.87 * SH if subsafe else SH
+    bot = bottom * SH if subsafe else SH
     avail_h = bot - top0
     if extended:
         base_w, base_h = min(w * SW, SW), avail_h

@@ -62,14 +62,25 @@ def zoom_for(shot, n, punch):
     return z, x, y
 
 
+def _key(shot, dur, punch):
+    import hashlib
+    return hashlib.md5(repr((sorted((k, v) for k, v in shot.items() if k not in ("start", "end", "seg")), round(dur, 3), punch)).encode()).hexdigest()[:10]
+
+
 def render_shot(shot, dur, punch, tmp):
     n = max(1, int(round(dur * FPS)))
-    out = os.path.join(tmp, f"{shot['id']}.mp4")
+    cache = os.path.join(ROOT, "out", "shot_cache", NAME)
+    os.makedirs(cache, exist_ok=True)
+    cached = os.path.join(cache, f"{shot['id']}_{_key(shot, dur, punch)}.mp4")
+    if os.path.exists(cached):
+        return cached
+    out = cached
     path = os.path.join(FOOT, shot["src"] + ".mp4")
     if shot.get("reframe"):                     # 16:9 source -> tracked 9:16 crop
         import reframe
         tr = reframe.render(path, shot["src_in"], n, shot["cam"], punch, out, cx=shot["cx"], w=shot["w"],
-                            subsafe=shot.get("subsafe", False), track=shot.get("track", False), flip=shot.get("flip", False))
+                            subsafe=shot.get("subsafe", False), track=shot.get("track", False), flip=shot.get("flip", False),
+                            bottom=shot.get("bottom", 0.87))
         mode = "extended" if shot["w"] > 0.33 else "full crop"
         print(f"  {shot['id']}: {shot['src']}@{shot['src_in']:.2f}s  {mode}{'  tracked' if tr else ''}", flush=True)
         return out

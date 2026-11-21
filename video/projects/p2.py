@@ -66,7 +66,7 @@ SHOT_LIST = [
     (11.05, "t1", 71.45, "handheld", "x=0.50 w=0.65"),        # Jason sniper (face + rifle)
     (11.70, "t1", 41.75, "push_in", "x=0.45"),                # neon reach
     (12.08, "t1", 18.40, "push_in", "x=0.55 w=0.50"),         # lowrider (3 people)
-    (14.00, "t2", 23.50, "handheld", "subsafe x=0.55"),       # driving at night
+    (14.00, "t2", 23.50, "handheld", "subsafe bot=0.80 x=0.55"),       # driving at night
     (15.50, "t1", 46.60, "crash_zoom", "x=0.50"),      # police chase street
     (16.54, "t1", 69.35, "push_in", "x=0.45"),                # helicopter over the city at night
     (17.30, "t1", 32.18, "hold", "x=0.35"),                   # Jason driving
@@ -121,14 +121,16 @@ def all_shots():
         for b0, b1 in BANNED[src]:
             if sin < b1 and src_out > b0:
                 raise ValueError(f"shot {i + 1} uses {src} {sin:.2f}-{src_out:.2f}s, overlapping banned {b0}-{b1}")
-        cx, w = 0.5, 0.32
+        cx, w, bottom = 0.5, 0.32, 0.87
         for o in opts.split():
             if o.startswith("x="):
                 cx = float(o[2:])
             if o.startswith("w="):
                 w = float(o[2:])
+            if o.startswith("bot="):
+                bottom = float(o[4:])
         out.append(dict(id=f"s{i + 1:02d}", seg=seg["id"], start=t0, end=t1, src=src, src_in=sin, cam=cam,
-                        flip=False, badge=False, reframe=True, subsafe="subsafe" in opts, cx=cx, w=w,
+                        flip=False, badge=False, reframe=True, subsafe="subsafe" in opts, cx=cx, w=w, bottom=bottom,
                         track="track" in opts))
     return out
 
