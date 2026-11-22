@@ -627,6 +627,8 @@ def render_overlay(t):
             continue   # centre stays empty
         elif k == "stars":
             draw_stars(canvas, e, age)
+        elif k == "money_big":
+            draw_money_big(canvas, e, age)
         elif k == "icon":
             draw_icon(canvas, e, age, icon_slot)
             icon_slot += 1
@@ -654,6 +656,104 @@ def corner_num_sprite(n):
     im = Image.alpha_composite(im, blk)
     im.paste(gradient_img(w, h, np.array([255, 70, 150.]), np.array([255, 170, 40.])), (0, 0), m)
     return im
+
+
+GOLD_HI, GOLD_LO = np.array([255, 236, 150.]), np.array([214, 140, 20.])
+
+
+@lru_cache(None)
+def coin_and_bills_sprite():
+    """Golden $ coin in front of a small stack of green dollar bills (drawn at 2x, downsampled)."""
+    S = 360
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    # bill stack (behind, tilted)
+    bills = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(bills)
+    for k in range(4):
+        y = 150 - k * 16
+        x = 120 + k * 6
+        bd.rounded_rectangle([x, y, x + 220, y + 110], 10, fill=(46, 140, 70, 255), outline=(170, 230, 170, 255), width=4)
+        bd.rounded_rectangle([x + 14, y + 12, x + 206, y + 98], 8, outline=(120, 200, 130, 255), width=3)
+        bd.ellipse([x + 80, y + 25, x + 140, y + 85], outline=(190, 240, 190, 255), width=4)
+    bd.text((120 + 18 + 6 * 3 + 92, 150 - 48 + 55), "$", font=font(F_ANTON, 56), fill=(210, 250, 210, 255), anchor="mm")
+    bills = bills.rotate(-12, Image.BICUBIC, center=(230, 160))
+    im.alpha_composite(bills)
+    # coin
+    c, r = 130, 98
+    yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
+    dist = np.sqrt((xx - c) ** 2 + (yy - (c + 70)) ** 2)
+    k = np.clip(((xx - c) * -0.6 + (yy - (c + 70)) * -0.8) / r * 0.5 + 0.5, 0, 1)[..., None]
+    col = GOLD_LO * (1 - k) + GOLD_HI * k
+    coin = np.zeros((S, S, 4), np.float32)
+    coin[..., :3] = col
+    coin[..., 3] = np.clip(r - dist, 0, 1) * 255
+    rim = (np.abs(dist - (r - 9)) < 4.5)
+    coin[rim, :3] = coin[rim, :3] * 0.72
+    cim = Image.fromarray(coin.astype(np.uint8), "RGBA")
+    cd = ImageDraw.Draw(cim)
+    cd.text((c + 4, c + 74), "$", font=font(F_ANTON, 150), fill=(150, 90, 10, 255), anchor="mm")
+    cd.text((c, c + 70), "$", font=font(F_ANTON, 150), fill=(255, 246, 200, 255), anchor="mm")
+    im.alpha_composite(cim)
+    return im.resize((205, 205), Image.LANCZOS)
+
+
+@lru_cache(256)
+def money_text_sprite(txt):
+    f = font(F_ANTON, 96)
+    w = int(f.getlength(txt)) + 50
+    h = 150
+    m = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(m).text((25, h / 2), txt, font=f, anchor="lm", fill=255)
+    st = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(st).text((25, h / 2), txt, font=f, anchor="lm", fill=255, stroke_width=7, stroke_fill=255)
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    blk = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    blk.paste((40, 22, 0, 255), (0, 0), st)
+    im = Image.alpha_composite(im, blk)
+    im.paste(gradient_img(w, h, GOLD_HI, GOLD_LO), (0, 0), m)
+    return im
+
+
+@lru_cache(None)
+def gold_glow(w, h):
+    g = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(g).ellipse([110, 100, w - 110, h - 100], fill=255)
+    g = g.filter(ImageFilter.GaussianBlur(45))
+    im = Image.new("RGBA", (w, h), (255, 200, 60, 0))
+    im.putalpha(g.point(lambda v: int(v * 0.55)))
+    return im
+
+
+def draw_money_big(canvas, e, age):
+    """Animated $20,000 badge: pop-up, count-up, golden glow, sparkles. Upper-middle (~37 % height)."""
+    a = clamp(age / 0.12) * clamp((e["dur"] - age) / 0.3)
+    s = back_out(age / 0.55)
+    if e["dur"] - age < 0.3:
+        s *= 0.85 + 0.15 * (e["dur"] - age) / 0.3
+    amount = int(round(e["amount"] * ease_out(clamp((age - 0.1) / 0.7)) / 100.0) * 100)
+    txt = f"${amount:,}"
+    coin = coin_and_bills_sprite()
+    tx = money_text_sprite(f"${e['amount']:,}")          # fixed width, for a stable layout
+    tv = money_text_sprite(txt)
+    total_w = coin.width - 30 + tx.width
+    cx, cy = W / 2, 712 + 5 * math.sin(age * 2.3)
+    glow = gold_glow(int(total_w + 260), 420)
+    pulse = 0.75 + 0.25 * math.sin(age * 4)
+    paste_center(canvas, scaled(glow, max(0.05, s)), cx, cy, a * pulse)
+    group = Image.new("RGBA", (int(total_w), max(coin.height, tx.height)), (0, 0, 0, 0))
+    group.alpha_composite(coin, (0, (group.height - coin.height) // 2))
+    group.alpha_composite(tv, (coin.width - 30, (group.height - tv.height) // 2 + 6))
+    paste_center(canvas, scaled(group, max(0.05, s), -5 * (1 - ease_out(age / 0.5))), cx, cy, a)
+    if age < 0.7:
+        draw_burst(canvas, cx, cy, age, n=22, seed=20, dist=260, dur=0.7, small=True)
+    rng = np.random.default_rng(7)
+    for i in range(7):                                    # twinkling gold sparkles around the badge
+        sx = cx + rng.uniform(-total_w / 2, total_w / 2)
+        sy = cy + rng.uniform(-95, 95)
+        tw = max(0.0, math.sin(age * 5 + i * 1.7)) ** 3
+        if tw > 0.05:
+            paste_center(canvas, glow_dot(int(rng.choice([3, 4, 5])), (255, 225, 120)), sx, sy, a * tw)
 
 
 @lru_cache(None)

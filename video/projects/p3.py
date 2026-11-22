@@ -151,7 +151,7 @@ def _fx():
     def icon(word, name, after=0.0, dur=2.2):
         fx.append(dict(t=at(word, after), kind="icon", dur=dur, name=name))
 
-    icon("000", "cash", 0, 2.6)
+    fx.append(dict(t=at("20"), kind="money_big", dur=3.45, amount=20000))   # the "$20,000" moment
     icon("spots.", "pin")
     icon("perroquet.", "eye", S["f1"], 2.0)
     icon("Shirley,", "comment", S["f1"], 1.9)
@@ -179,7 +179,7 @@ def _fx():
     fx.sort(key=lambda e: e["t"])
     kept = []
     for e in fx:   # one topic icon at a time, never overlapping
-        live = [k for k in kept if k["t"] <= e["t"] < k["t"] + k["dur"]]
+        live = [k for k in kept if k["t"] <= e["t"] < k["t"] + k["dur"] and k["kind"] == "icon"]
         for k in live:
             k["dur"] = max(0.4, e["t"] - k["t"])
         kept.append(e)
