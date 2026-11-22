@@ -75,7 +75,12 @@ def render_shot(shot, dur, punch, tmp):
     if os.path.exists(cached):
         return cached
     out = cached
-    path = os.path.join(FOOT, shot["src"] + ".mp4")
+    path = os.path.join(FOOT, shot["src"] + "." + shot.get("ext", "mp4"))
+    if shot.get("vertical_clean"):              # user's own vertical clips: text removal + camera move
+        import reframe
+        reframe.render_vertical(path, shot["src_in"], n, shot["cam"], punch, out, flip=shot.get("flip", False))
+        print(f"  {shot['id']}: {shot['src']}@{shot['src_in']:.2f}s  cleaned", flush=True)
+        return out
     if shot.get("reframe"):                     # 16:9 source -> tracked 9:16 crop
         import reframe
         tr = reframe.render(path, shot["src_in"], n, shot["cam"], punch, out, cx=shot["cx"], w=shot["w"],
@@ -112,7 +117,7 @@ def main():
         segments = [s for s in SEGMENTS if s["start"] < a.preview]
         shots = [s for s in shots if s["seg"] in {g["id"] for g in segments}]
     for s in shots:
-        if not os.path.exists(os.path.join(FOOT, s["src"] + ".mp4")):
+        if not os.path.exists(os.path.join(FOOT, s["src"] + "." + s.get("ext", "mp4"))):
             sys.exit(f"missing footage/{s['src']}.mp4")
     if a.check:
         print(f"{len(shots)} shots OK")

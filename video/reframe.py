@@ -204,3 +204,33 @@ def render(path, start, n, cam, punch, out_path, cx=0.5, w=0.32, subsafe=False, 
     enc.stdin.close()
     enc.wait()
     return 1.0 if path_x is not None else 0.0
+
+
+def render_vertical(path, start, n, cam, punch, out_path, flip=False):
+    """User's own vertical 1080x1920 clips: remove burned-in text, then the same gentle camera moves."""
+    import clean_text
+    raw = subprocess.check_output(["ffmpeg", "-loglevel", "error", "-ss", f"{start}", "-i", path, "-frames:v", str(n),
+                                   "-vf", f"fps={FPS},scale={W}:{H},hqdn3d=1.2:1.0:3:2.5", "-f", "rawvideo",
+                                   "-pix_fmt", "rgb24", "-"])
+    frames = np.frombuffer(raw, np.uint8).reshape(-1, H, W, 3)
+    if len(frames) < n:
+        raise RuntimeError(f"{path}: only {len(frames)} of {n} frames from {start}s")
+    enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
+                            "-r", str(FPS), "-i", "-", "-vf", "eq=contrast=1.04:saturation=1.08,format=yuv420p",
+                            "-c:v", "libx264", "-preset", "medium", "-crf", "15", out_path], stdin=subprocess.PIPE)
+    for i in range(n):
+        img = clean_text.clean(frames[i])
+        im = Image.fromarray(img)
+        if flip:
+            im = im.transpose(Image.FLIP_LEFT_RIGHT)
+        z, dx, dy = zoom_at(cam, i, n, punch)
+        z = max(z, 1.02)                                  # hides the edge of any inpainted corner
+        cw, ch = W / z, H / z
+        x0 = (W - cw) / 2 + dx
+        y0 = (H - ch) * 0.45 + dy
+        im = im.transform((W, H), Image.AFFINE, (cw / W, 0, x0, 0, ch / H, y0), resample=Image.BICUBIC)
+        im = im.filter(ImageFilter.UnsharpMask(radius=1.2, percent=35, threshold=2))
+        enc.stdin.write(im.tobytes())
+    enc.stdin.close()
+    enc.wait()
+    return 0.0

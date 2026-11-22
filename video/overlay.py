@@ -22,6 +22,9 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 sys.path.insert(0, os.path.dirname(__file__))
 from timeline import SEGMENTS, FPS, W, H, DURATION, FX, PILL_TEXT, TITLE_LABEL  # noqa: E402
+import timeline as _TL  # noqa: E402
+STYLE = getattr(_TL, "STYLE", "p2")
+TOTAL = getattr(_TL, "COUNTER_TOTAL", 10)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -338,7 +341,7 @@ def counter_sprite(n, progress, t, pop):
     else:
         big = font(F_ANTON, 92 if n < 10 else 80)
         small = font(F_ANTON, 40)
-        s1, s2 = str(n), "/10"
+        s1, s2 = str(n), f"/{TOTAL}"
         w1, w2 = big.getlength(s1), small.getlength(s2)
         x0 = cx - (w1 + w2) / 2
         d.text((x0, cx + 30), s1, font=big, fill="white", anchor="ls", stroke_width=4, stroke_fill="black")
@@ -540,6 +543,18 @@ ICON_POS = [(1018, 860), (62, 860)]
 
 
 def draw_icon(canvas, e, age, slot):
+    if STYLE == "p3":
+        s = back_out(age / 0.5) * clamp((e["dur"] - age) / 0.22)
+        if s <= 0.01:
+            return
+        cx = 950 + 4 * math.sin(age * 1.7)
+        cy = 715 + 6 * math.sin(age * 2.4)
+        ph = (age * 0.9) % 1
+        paste_center(canvas, scaled(ring_sprite(70, 5), 0.9 + 0.5 * ph), cx, cy, 0.55 * (1 - ph) * min(1, s))
+        if age < 0.5:
+            draw_burst(canvas, cx, cy, age, n=12, seed=int(e["t"] * 10), dist=130, dur=0.5, small=True)
+        paste_center(canvas, scaled(icon_sprite(e["name"]), 0.52 * s, 4 * math.sin(age * 3)), cx, cy, min(1, s))
+        return
     s = back_out(age / 0.45) * clamp((e["dur"] - age) / 0.2)
     if s <= 0.01:
         return
@@ -559,7 +574,8 @@ def render_overlay(t):
     idx = SEGMENTS.index(seg)
     canvas.alpha_composite(top_shade())
     draw_ambient(canvas, t)
-    draw_minimap(canvas, t)
+    if STYLE != "p3":
+        draw_minimap(canvas, t)
 
     # counter
     if seg["counter"] is not None:
@@ -567,29 +583,38 @@ def render_overlay(t):
         prev = (SEGMENTS[idx - 1]["counter"] or 0) if idx else 0
         intro = seg["id"] == "title"
         appear = back_out(lt / 0.5) if intro else 1.0
-        prog_from = 0 if intro else prev / 10
-        prog = (prog_from + (n / 10 - prog_from) * ease_out(lt / 0.5)) if n else 0.0
+        prog_from = 0 if intro else prev / TOTAL
+        prog = (prog_from + (n / TOTAL - prog_from) * ease_out(lt / 0.5)) if n else 0.0
         changed = n != prev and not intro
         pop = 1 + 0.3 * (1 - elastic_out(lt / 0.7)) if changed else 1.0
-        CY = 118
+        CY, CS, DY, DS = (118, 0.44, 190, 15) if STYLE != "p3" else (205, 0.58, 300, 26)
         if changed and lt < 0.5:
-            paste_center(canvas, scaled(ring_sprite(52, 4), 1 + lt * 1.2), W / 2, CY, 0.7 * (1 - lt / 0.5))
-        paste_center(canvas, scaled(counter_sprite(n, prog, t, 1.0), max(0.02, 0.44 * pop * appear)), W / 2, CY)
+            paste_center(canvas, scaled(ring_sprite(52, 4), (1 + lt * 1.2) * CS / 0.44), W / 2, CY, 0.7 * (1 - lt / 0.5))
+        paste_center(canvas, scaled(counter_sprite(n, prog, t, 1.0), max(0.02, CS * pop * appear)), W / 2, CY)
         d = ImageDraw.Draw(canvas)
-        for i in range(10):
-            x = W / 2 + (i - 4.5) * 15
+        for i in range(TOTAL):
+            x = W / 2 + (i - (TOTAL - 1) / 2) * DS
             on = i < n
-            col = tuple((PINK + (ORANGE - PINK) * i / 9).astype(int)) + (230,) if on else (255, 255, 255, 80)
-            r = 3.5 if on else 2.5
+            col = tuple((PINK + (ORANGE - PINK) * i / max(1, TOTAL - 1)).astype(int)) + (230,) if on else (255, 255, 255, 80)
+            r = (3.5 if on else 2.5) * (1.6 if STYLE == "p3" else 1)
             if on and i == n - 1:
-                r = 3.5 + 1.2 * abs(math.sin(t * 5))
-            d.ellipse([x - r, 190 - r, x + r, 190 + r], fill=col)
+                r += 1.5 * abs(math.sin(t * 5))
+            d.ellipse([x - r, DY - r, x + r, DY + r], fill=col)
 
-    # small "#n" badge in the upper-left corner
+    # "#n" badge: corner (p1/p2) or numbered badge in the upper-middle band (p3)
     if seg["id"].startswith("f"):
-        sp = corner_num_sprite(seg["counter"])
-        pop = elastic_out(lt / 0.6)
-        paste_center(canvas, scaled(sp, max(0.05, pop)), 40 + sp.width / 2 - 20, 118)
+        if STYLE == "p3":
+            sp = num_badge_sprite(seg["counter"])
+            pop = elastic_out(lt / 0.7)
+            bx, by = 130, 715 + 6 * math.sin(t * 2.2)
+            if lt < 0.6:
+                paste_center(canvas, scaled(ring_sprite(70, 5), 0.8 + lt * 1.6), bx, by, 0.8 * (1 - lt / 0.6))
+                draw_burst(canvas, bx, by, lt, n=16, seed=seg["counter"], dist=150, dur=0.6, small=True)
+            paste_center(canvas, scaled(sp, max(0.05, pop), -8 * (1 - ease_out(lt / 0.5))), bx, by)
+        else:
+            sp = corner_num_sprite(seg["counter"])
+            pop = elastic_out(lt / 0.6)
+            paste_center(canvas, scaled(sp, max(0.05, pop)), 40 + sp.width / 2 - 20, 118)
 
     # timed decorative FX
     icon_slot = 0
@@ -629,6 +654,33 @@ def corner_num_sprite(n):
     im = Image.alpha_composite(im, blk)
     im.paste(gradient_img(w, h, np.array([255, 70, 150.]), np.array([255, 170, 40.])), (0, 0), m)
     return im
+
+
+@lru_cache(None)
+def num_badge_sprite(n):
+    """Numbered badge '#n' for STYLE p3: dark disc, glowing pink->orange ring, white/gradient number."""
+    S = 300
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    c = S / 2
+    ring = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(ring).ellipse([c - 110, c - 110, c + 110, c + 110], outline=255, width=16)
+    glow = Image.new("RGBA", (S, S), (255, 80, 110, 0))
+    glow.putalpha(ring.filter(ImageFilter.GaussianBlur(16)))
+    im = Image.alpha_composite(im, glow)
+    d = ImageDraw.Draw(im)
+    d.ellipse([c - 102, c - 102, c + 102, c + 102], fill=(14, 6, 24, 225))
+    im.paste(gradient_img(S, S, PINK, ORANGE, horizontal=True), (0, 0), ring)
+    f = font(F_ANTON, 120)
+    txt = f"#{n}"
+    m = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(m).text((c, c + 4), txt, font=f, anchor="mm", fill=255)
+    st = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(st).text((c, c + 4), txt, font=f, anchor="mm", fill=255, stroke_width=6, stroke_fill=255)
+    blk = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    blk.paste((10, 4, 16, 255), (0, 0), st)
+    im = Image.alpha_composite(im, blk)
+    im.paste(gradient_img(S, S, np.array([255, 255, 255.]), np.array([255, 190, 120.])), (0, 0), m)
+    return im.resize((150, 150), Image.LANCZOS)
 
 
 @lru_cache(None)

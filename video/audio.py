@@ -286,7 +286,7 @@ def build_music(total):
 
     # sections: (start, end, drums_on, filter_closed)
     drums_from = next(s for s in SEGMENTS if s["counter"] is not None)["start"]   # beat drops on the title
-    f10 = next(s for s in SEGMENTS if s["counter"] == 10)
+    f10 = max((s for s in SEGMENTS if s["counter"]), key=lambda s: (s["counter"], -s["start"]))
     break_start, break_end = f10["start"] - 1.0, f10["start"]     # silence-ish before #10
     end_fade = total - 2.0
 
