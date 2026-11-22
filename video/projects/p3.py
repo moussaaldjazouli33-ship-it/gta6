@@ -105,7 +105,7 @@ SHOT_LIST = [
     (23.82, "t1", 33.05, "hold", "x=0.38"),            # dark interior
     (25.22, "m3", 13.30, "push_in", "flip"),           # the bag of cash
     (26.60, "t1", 72.20, "crash_zoom", "x=0.32 w=0.50"),  # weapons
-    (27.55, "m3", 9.50, "push_in", ""),                # the office safe
+    (27.55, "t1", 34.45, "push_in", "x=0.45"),         # vault door (the office safe)
     (28.62, "m3", 7.20, "push_in", ""),                # office (collectible card)
     (30.30, "t1", 11.30, "push_in", "x=0.62"),         # Jason on the phone (pawn shop deal)
     (32.00, "t2", 124.00, "push_in", "subsafe x=0.52 track"),  # Jason close-up
@@ -115,13 +115,13 @@ SHOT_LIST = [
     (37.20, "t1", 28.80, "push_in", "x=0.58"),         # Jason in red light ("et attends")
     # spot 3: the crab research outpost
     (38.08, "t1", 27.25, "hold", "x=0.50"),            # crew in the swamp at sunset
-    (39.50, "t1", 34.45, "push_in", "x=0.45"),         # Lucia at the vault door
+    (39.50, "t1", 38.40, "pull_out", "x=0.45"),        # hangar (research outpost)
     (40.76, "m3", 13.40, "push_in", "flip"),           # the desk / computer
-    (42.20, "m3", 11.20, "crash_zoom", "flip"),        # the safe (code)
+    (42.20, "m3", 12.10, "crash_zoom", ""),            # the safe (code)
     (43.66, "t1", 13.60, "hold", "x=0.42"),            # the dock
     (44.50, "t1", 9.40, "push_in", "x=0.50"),          # yacht at the quay
     (45.72, "t1", 64.30, "hold", "x=0.50 w=0.55"),     # gun in the teal room
-    (47.20, "m2", 13.20, "push_in", "flip"),           # back with the cash
+    (47.20, "t1", 60.25, "handheld", "x=0.45"),        # firefight (laundered cash)
     (48.70, "t1", 4.45, "pull_out", "x=0.50"),         # BRIAN'S MARINA
     (50.40, "t1", 6.40, "push_in", "x=0.58 w=0.82"),   # Jason working at the marina
     (52.36, "t2", 39.20, "push_in", "subsafe x=0.42 w=0.50"),   # busted: hands up
