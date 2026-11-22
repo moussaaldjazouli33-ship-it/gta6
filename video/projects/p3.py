@@ -46,7 +46,7 @@ for i, (sid, counter, tr) in enumerate(_meta):
 
 SHOT_LIST = [
     # hook: money
-    (0.00, "m4", 0.20, "push_in", ""),                 # riding, in-game cash HUD
+    (0.00, "m4", 0.20, "push_in", "croptop=0.315"),                 # riding (old cash box reframed out)
     (2.00, "m3", 13.00, "push_in", ""),                # counting the cash
     (3.30, "t1", 52.36, "crash_zoom", "x=0.55"),       # gunman + explosion
     # title
@@ -62,7 +62,7 @@ SHOT_LIST = [
     (13.90, "m3", 3.30, "push_in", ""),                # the hidden stash behind it
     (14.80, "m3", 10.20, "push_in", ""),               # the safe in the back room
     # spot 2: the warehouse
-    (16.44, "m4", 3.95, "push_in", ""),                # riding to the spot
+    (16.44, "m4", 4.20, "push_in", ""),                # riding to the spot
     (18.20, "m1", 1.20, "pull_out", ""),               # arriving near Hamlet
     (20.00, "t1", 2.10, "push_in", "x=0.40"),          # vehicle parked on the road
     (21.50, "m1", 15.60, "push_in", ""),               # walking to the warehouse gate
@@ -74,7 +74,7 @@ SHOT_LIST = [
     (28.62, "m3", 7.20, "push_in", ""),                # office (collectible card)
     (30.30, "t1", 11.30, "push_in", "x=0.62"),         # Jason on the phone (pawn shop deal)
     (32.00, "t2", 124.00, "push_in", "subsafe x=0.52 track"),  # Jason close-up
-    (32.98, "m4", 1.90, "hold", ""),                   # cash HUD while riding
+    (32.98, "m4", 1.90, "hold", "croptop=0.315"),                   # riding (old cash box reframed out)
     (34.90, "t1", 61.10, "hold", "x=0.45 w=0.70"),     # the crew
     (36.30, "t1", 41.75, "push_in", "x=0.45"),         # neon reach
     (37.20, "t1", 28.80, "push_in", "x=0.58"),         # Jason in red light ("et attends")
@@ -94,7 +94,7 @@ SHOT_LIST = [
     (55.26, "t2", 194.00, "hold", "subsafe x=0.58 w=0.45"),    # family savings: the couple at home
     # outro
     (56.68, "m1", 7.60, "push_in", ""),                # Jason with Shirley
-    (58.40, "m4", 4.00, "pull_out", "flip"),           # riding away
+    (58.40, "m4", 4.20, "pull_out", "flip"),           # riding away
 ]
 
 BANNED = {
@@ -128,7 +128,8 @@ def all_shots():
         d = dict(id=f"s{i + 1:02d}", seg=seg["id"], start=t0, end=t1, src=src, src_in=sin, cam=cam,
                  flip="flip" in opts, badge=False)
         if src.startswith("m"):
-            d.update(vertical_clean=True, ext="mov")
+            ct = next((float(o[8:]) for o in opts.split() if o.startswith("croptop=")), 0.0)
+            d.update(vertical_clean=True, ext="mov", croptop=ct)
         else:
             d.update(reframe=True, subsafe="subsafe" in opts, cx=cx, w=w, bottom=bottom, track="track" in opts)
         out.append(d)
@@ -151,7 +152,7 @@ def _fx():
     def icon(word, name, after=0.0, dur=2.2):
         fx.append(dict(t=at(word, after), kind="icon", dur=dur, name=name))
 
-    fx.append(dict(t=at("20"), kind="money_big", dur=3.45, amount=20000))   # the "$20,000" moment
+    fx.append(dict(t=at("20"), kind="money_big", dur=2.45, amount=20000))   # the "$20,000" moment
     icon("spots.", "pin")
     icon("perroquet.", "eye", S["f1"], 2.0)
     icon("Shirley,", "comment", S["f1"], 1.9)

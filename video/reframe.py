@@ -206,7 +206,7 @@ def render(path, start, n, cam, punch, out_path, cx=0.5, w=0.32, subsafe=False, 
     return 1.0 if path_x is not None else 0.0
 
 
-def render_vertical(path, start, n, cam, punch, out_path, flip=False):
+def render_vertical(path, start, n, cam, punch, out_path, flip=False, croptop=0.0):
     """User's own vertical 1080x1920 clips: remove burned-in text, then the same gentle camera moves."""
     import clean_text
     raw = subprocess.check_output(["ffmpeg", "-loglevel", "error", "-ss", f"{start}", "-i", path, "-frames:v", str(n),
@@ -224,11 +224,20 @@ def render_vertical(path, start, n, cam, punch, out_path, flip=False):
         if flip:
             im = im.transpose(Image.FLIP_LEFT_RIGHT)
         z, dx, dy = zoom_at(cam, i, n, punch)
-        z = max(z, 1.02)                                  # hides the edge of any inpainted corner
-        cw, ch = W / z, H / z
-        x0 = (W - cw) / 2 + dx
-        y0 = (H - ch) * 0.45 + dy
-        im = im.transform((W, H), Image.AFFINE, (cw / W, 0, x0, 0, ch / H, y0), resample=Image.BICUBIC)
+        if croptop > 0:                                   # reframe below an unwanted on-screen element
+            ch = (H * (1 - croptop)) / z
+            cw = ch * W / H
+            x0 = (W - cw) / 2 + dx
+            y0 = H - ch
+            nw, nh = int(round(cw)), int(round(ch))
+            win = im.transform((nw, nh), Image.AFFINE, (cw / nw, 0, x0, 0, ch / nh, y0), resample=Image.BICUBIC)
+            im = _sr(win).resize((W, H), Image.LANCZOS)    # AI x2 then downscale: stays sharp
+        else:
+            z = max(z, 1.02)                              # hides the edge of any inpainted corner
+            cw, ch = W / z, H / z
+            x0 = (W - cw) / 2 + dx
+            y0 = (H - ch) * 0.45 + dy
+            im = im.transform((W, H), Image.AFFINE, (cw / W, 0, x0, 0, ch / H, y0), resample=Image.BICUBIC)
         im = im.filter(ImageFilter.UnsharpMask(radius=1.2, percent=35, threshold=2))
         enc.stdin.write(im.tobytes())
     enc.stdin.close()

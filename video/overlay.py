@@ -737,7 +737,7 @@ def draw_money_big(canvas, e, age):
     tx = money_text_sprite(f"${e['amount']:,}")          # fixed width, for a stable layout
     tv = money_text_sprite(txt)
     total_w = coin.width - 30 + tx.width
-    cx, cy = W / 2, 712 + 5 * math.sin(age * 2.3)
+    cx, cy = W / 2, 470 + 5 * math.sin(age * 2.3)
     glow = gold_glow(int(total_w + 260), 420)
     pulse = 0.75 + 0.25 * math.sin(age * 4)
     paste_center(canvas, scaled(glow, max(0.05, s)), cx, cy, a * pulse)
