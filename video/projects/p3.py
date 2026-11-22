@@ -17,24 +17,59 @@ import os
 FPS = 30
 W, H = 1080, 1920
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-VO_FILE = os.path.join(ROOT, "footage", "voiceover3.mp3")
+VO_SRC = os.path.join(ROOT, "footage", "voiceover3.mp3")
+VO_FILE = os.path.join(ROOT, "footage", "voiceover3_60s.wav")
+# Exact 60.00 s: trim only silences (middle of the longest pauses + the tail), never a word.
+VO_LEN = 60.734694
+CUTS = [(37.87, 38.02), (42.35, 42.45), (43.90, 44.03), (45.53, 45.65), (60.50, VO_LEN)]
+
+
+def tmap(t):
+    """original voice-over time -> edited (60 s) time"""
+    d = 0.0
+    for a, b in CUTS:
+        if t >= b:
+            d += b - a
+        elif t > a:
+            d += t - a
+    return t - d
+
+
+def _build_vo():
+    if os.path.exists(VO_FILE) and os.path.getmtime(VO_FILE) > os.path.getmtime(__file__):
+        return
+    import subprocess
+    keep, t = [], 0.0
+    for a, b in CUTS:
+        keep.append((t, a))
+        t = b
+    if t < VO_LEN:
+        keep.append((t, VO_LEN))
+    parts = [f"[0:a]atrim={a}:{b},asetpts=N/SR/TB,afade=t=in:d=0.006,afade=t=out:st={b - a - 0.006:.4f}:d=0.006[p{i}]"
+             for i, (a, b) in enumerate(keep)]
+    fc = ";".join(parts) + ";" + "".join(f"[p{i}]" for i in range(len(keep))) + f"concat=n={len(keep)}:v=0:a=1,atrim=0:60[a]"
+    subprocess.check_call(["ffmpeg", "-y", "-loglevel", "error", "-i", VO_SRC, "-filter_complex", fc, "-map", "[a]",
+                           "-ar", "44100", "-ac", "2", VO_FILE])
+
+
+_build_vo()
 NAME = "gta6_3_spots"
 PILL_TEXT = "GTA 6"
 TITLE_LABEL = ""
 STYLE = "p3"            # icons at ~36 % height, bigger counter, numbered badge, no radar
 COUNTER_TOTAL = 3
 XFADE_D = 0.25
-DURATION = 60.70
+DURATION = 60.0
 
-with open(os.path.join(ROOT, "production", "vo3_words.json"), encoding="utf-8") as f:
-    WORDS = [tuple(w) for w in json.load(f)]
+with open(os.path.join(ROOT, "production", "vo3_words_orig.json"), encoding="utf-8") as f:
+    WORDS = [(w[0], tmap(w[1]), tmap(w[2])) for w in json.load(f)]
 
 
 def _num(n):
     return next(s for t, s, e in WORDS if t == f"{n}.")
 
 
-_B = [0.0, 4.54, _num(1), _num(2), _num(3), 56.68, DURATION]
+_B = [0.0, tmap(4.54), _num(1), _num(2), _num(3), tmap(56.68), DURATION]
 _meta = [("hook", None, "flash"), ("title", 0, "zoom_punch"), ("f1", 1, "whip"), ("f2", 2, "glitch"),
          ("f3", 3, "light_leak"), ("cta", 3, "whip")]
 _sfx = {"hook": [(0.0, "impact"), (0.9, "cash")], "title": [(0.0, "whoosh"), (0.1, "ding")],
@@ -110,7 +145,8 @@ BANNED = {
 def all_shots():
     out = []
     for i, (t0, src, sin, cam, opts) in enumerate(SHOT_LIST):
-        t1 = SHOT_LIST[i + 1][0] if i + 1 < len(SHOT_LIST) else DURATION
+        t0 = round(tmap(t0), 4)
+        t1 = round(tmap(SHOT_LIST[i + 1][0]), 4) if i + 1 < len(SHOT_LIST) else DURATION
         seg = next(s for s in SEGMENTS if s["start"] <= t0 < s["end"])
         last_in_seg = t1 >= seg["end"] - 1e-6 and seg is not SEGMENTS[-1]
         src_out = sin + (t1 - t0) + (XFADE_D if last_in_seg else 0)
