@@ -66,7 +66,8 @@ SHOT_LIST = [
     (48.60, "n3", 17.20, "pull_out", ""),    # carrying the bags
     (51.15, "n3", 8.80, "push_in", ""),      # the office safe
     (53.60, "n3", 11.30, "crash_zoom", ""),  # cocaine + cash inside
-    (55.40, "n3", 14.00, "push_in", ""),     # the collectible card
+    (55.40, "n3", 14.30, "push_in", ""),     # the collectible card (after the game's black fade)
+    (57.60, "n4", 13.00, "hold", ""),        # selling (pawn shop)
     (58.15, "n3", 19.00, "handheld", ""),    # bags by the van
     (59.90, "n4", 2.50, "push_in", ""),      # filling bags
     (62.15, "n4", 5.00, "push_in", ""),      # to Brian's warehouse
