@@ -17,7 +17,7 @@ os.environ.setdefault("GTA_PROJECT", "p4")
 import overlay  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DUR, FPS, W, H = 2.3, 30, 1080, 1920
+DUR, FPS, W, H = 2.35, 30, 1080, 1920
 
 
 def frames(green):

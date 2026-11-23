@@ -994,13 +994,17 @@ def user_logo(width=400):
     return im.resize((width, int(im.height * width / im.width)), Image.LANCZOS)
 
 
+LOGO_FROM = 2.25          # after the intro logo
+
+
 def draw_user_logo(canvas, t):
-    """The user's own GTA VI logo, top centre, medium size; pops in at the start, then stays."""
+    """The user's own GTA VI logo, top centre, medium size; pops in after the intro, then stays."""
     lg = user_logo()
-    if lg is None:
+    if lg is None or t < LOGO_FROM:
         return
-    s = back_out(t / 0.6) if t < 0.6 else 1.0
-    a = clamp(t / 0.15)
+    u = t - LOGO_FROM
+    s = back_out(u / 0.6) if u < 0.6 else 1.0
+    a = clamp(u / 0.15)
     paste_center(canvas, scaled(lg, max(0.05, s)), W / 2, 70 + lg.height / 2, a)
 
 
@@ -1037,8 +1041,17 @@ def _shine(sprite, k):
     return Image.alpha_composite(sprite, white)
 
 
+@lru_cache(None)
+def intro_logo(width=760):
+    p = os.path.join(ROOT, "footage", "gta6_intro_logo.png")
+    if not os.path.exists(p):
+        return None
+    im = Image.open(p).convert("RGBA")
+    return im.resize((width, int(im.height * width / im.width)), Image.LANCZOS)
+
+
 def draw_title(canvas, age, dur, green_safe=False, cy=560):
-    sp = title_sprite(green_safe)
+    sp = intro_logo() or title_sprite(green_safe)
     if age < 0.3:
         s = 1.9 - 0.9 * ease_out(age / 0.3)
     else:
