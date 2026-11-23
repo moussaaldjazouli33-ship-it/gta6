@@ -15,7 +15,7 @@ VO_FILE = os.path.join(ROOT, "footage", "voiceover4.mp3")
 NAME = "gta6_secret_warehouse"
 PILL_TEXT = "GTA 6"
 TITLE_LABEL = ""
-STYLE = "p3"
+STYLE = "gta"
 COUNTER_TOTAL = 3
 XFADE_D = 0.25
 DURATION = 68.86
@@ -106,8 +106,9 @@ def _fx():
     def icon(word, name, after=0.0, dur=2.0):
         fx.append(dict(t=at(word, after), kind="icon", dur=dur, name=name))
 
-    icon("money", "cash", 0, 1.9)
-    icon("weapons", "gun", 3, 2.2)
+    fx.append(dict(t=0.0, kind="title", dur=2.3))                         # "GTA 6" intro
+    fx.append(dict(t=at("weapons", 3) - 0.05, kind="weapons", dur=1.25,
+                   items=[("rifle", at("weapons", 3) - 0.05)]))
     icon("warehouse", "pin", 6, 1.6)
     icon("location", "pin", 11)
     icon("lakes", "eye", 12, 1.6)
@@ -117,8 +118,9 @@ def _fx():
     icon("unconscious", "eye", 25, 2.0)
     icon("loot", "bag", 28, 1.6)
     icon("subscribe", "share", 30, 2.6)
-    icon("weapons", "gun", 35)
-    icon("machine", "gun", 36, 1.5)
+    tw = at("weapons", 35)
+    fx.append(dict(t=tw, kind="weapons", dur=40.4 - tw,
+                   items=[("smg", at("machine", 36)), ("rifle", at("assault", 37)), ("pistol", at("pistols", 38))]))
     icon("cocaine", "coke", 42, 2.2)
     icon("trucks", "car", 46, 1.8)
     icon("storage", "bag", 50, 1.6)
@@ -133,6 +135,9 @@ def _fx():
     fx.sort(key=lambda e: e["t"])
     kept = []
     for e in fx:                       # one icon at a time; icons pause while a money badge shows
+        if e["kind"] != "icon":
+            kept.append(e)
+            continue
         live = [k for k in kept if k["t"] <= e["t"] < k["t"] + k["dur"] and k["kind"] == "icon"]
         for k in live:
             k["dur"] = max(0.4, e["t"] - k["t"])

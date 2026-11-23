@@ -34,6 +34,10 @@ F_MONT = os.path.join(FONT_DIR, "Montserrat-800.woff")
 
 PINK = np.array([255, 46, 136], float)
 ORANGE = np.array([255, 154, 31], float)
+GTA_GREEN = np.array([114, 214, 104], float)
+GTA_PURPLE = np.array([150, 70, 255], float)
+if STYLE == "gta":                       # GTA-inspired palette: purple -> green
+    PINK, ORANGE = GTA_PURPLE, GTA_GREEN
 YELLOW = (255, 225, 77)
 
 
@@ -554,7 +558,7 @@ ICON_POS = [(1018, 860), (62, 860)]
 
 
 def draw_icon(canvas, e, age, slot):
-    if STYLE == "p3":
+    if STYLE in ("p3", "gta"):
         s = back_out(age / 0.5) * clamp((e["dur"] - age) / 0.22)
         if s <= 0.01:
             return
@@ -564,7 +568,8 @@ def draw_icon(canvas, e, age, slot):
         paste_center(canvas, scaled(ring_sprite(70, 5), 0.9 + 0.5 * ph), cx, cy, 0.55 * (1 - ph) * min(1, s))
         if age < 0.5:
             draw_burst(canvas, cx, cy, age, n=12, seed=int(e["t"] * 10), dist=130, dur=0.5, small=True)
-        paste_center(canvas, scaled(icon_sprite(e["name"]), 0.52 * s, 4 * math.sin(age * 3)), cx, cy, min(1, s))
+        isz = 0.68 if STYLE == "gta" else 0.52
+        paste_center(canvas, scaled(icon_sprite(e["name"]), isz * s, 4 * math.sin(age * 3)), cx, cy, min(1, s))
         return
     s = back_out(age / 0.45) * clamp((e["dur"] - age) / 0.2)
     if s <= 0.01:
@@ -585,7 +590,7 @@ def render_overlay(t):
     idx = SEGMENTS.index(seg)
     canvas.alpha_composite(top_shade())
     draw_ambient(canvas, t)
-    if STYLE != "p3":
+    if STYLE not in ("p3", "gta"):
         draw_minimap(canvas, t)
 
     # counter
@@ -598,7 +603,7 @@ def render_overlay(t):
         prog = (prog_from + (n / TOTAL - prog_from) * ease_out(lt / 0.5)) if n else 0.0
         changed = n != prev and not intro
         pop = 1 + 0.3 * (1 - elastic_out(lt / 0.7)) if changed else 1.0
-        CY, CS, DY, DS = (118, 0.44, 190, 15) if STYLE != "p3" else (205, 0.58, 300, 26)
+        CY, CS, DY, DS = (118, 0.44, 190, 15) if STYLE not in ("p3", "gta") else (205, 0.58, 300, 26)
         if changed and lt < 0.5:
             paste_center(canvas, scaled(ring_sprite(52, 4), (1 + lt * 1.2) * CS / 0.44), W / 2, CY, 0.7 * (1 - lt / 0.5))
         paste_center(canvas, scaled(counter_sprite(n, prog, t, 1.0), max(0.02, CS * pop * appear)), W / 2, CY)
@@ -607,14 +612,14 @@ def render_overlay(t):
             x = W / 2 + (i - (TOTAL - 1) / 2) * DS
             on = i < n
             col = tuple((PINK + (ORANGE - PINK) * i / max(1, TOTAL - 1)).astype(int)) + (230,) if on else (255, 255, 255, 80)
-            r = (3.5 if on else 2.5) * (1.6 if STYLE == "p3" else 1)
+            r = (3.5 if on else 2.5) * (1.6 if STYLE in ("p3", "gta") else 1)
             if on and i == n - 1:
                 r += 1.5 * abs(math.sin(t * 5))
             d.ellipse([x - r, DY - r, x + r, DY + r], fill=col)
 
     # "#n" badge: corner (p1/p2) or numbered badge in the upper-middle band (p3)
     if seg["id"].startswith("f"):
-        if STYLE == "p3":
+        if STYLE in ("p3", "gta"):
             sp = num_badge_sprite(seg["counter"])
             pop = elastic_out(lt / 0.7)
             bx, by = 130, 715 + 6 * math.sin(t * 2.2)
@@ -639,7 +644,11 @@ def render_overlay(t):
         elif k == "stars":
             draw_stars(canvas, e, age)
         elif k == "money_big":
-            draw_money_big(canvas, e, age)
+            (draw_money_gta if STYLE == "gta" else draw_money_big)(canvas, e, age)
+        elif k == "weapons":
+            draw_weapons(canvas, e, t)
+        elif k == "title":
+            draw_title(canvas, age, e["dur"])
         elif k == "icon":
             draw_icon(canvas, e, age, icon_slot)
             icon_slot += 1
@@ -766,6 +775,262 @@ def draw_money_big(canvas, e, age):
         if tw > 0.05:
             paste_center(canvas, glow_dot(int(rng.choice([3, 4, 5])), (255, 225, 120)), sx, sy, a * tw)
 
+
+# =================================================================== GTA-style graphics (STYLE "gta")
+def _outline_text(txt, size, fill, stroke=12, shadow=True, grad=None):
+    f = font(F_ANTON, size)
+    w = int(f.getlength(txt)) + stroke * 2 + 60
+    h = int(size * 1.45) + 40
+    st = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(st).text((w / 2, h / 2), txt, font=f, anchor="mm", fill=255, stroke_width=stroke, stroke_fill=255)
+    m = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(m).text((w / 2, h / 2), txt, font=f, anchor="mm", fill=255)
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    if shadow:
+        sh = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        sh.putalpha(st.filter(ImageFilter.GaussianBlur(6)).point(lambda v: int(v * 0.7)))
+        im.alpha_composite(sh, (6, 9))
+    blk = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    blk.paste((0, 0, 0, 255), (0, 0), st)
+    im = Image.alpha_composite(im, blk)
+    if grad is not None:
+        im.paste(gradient_img(w, h, *grad), (0, 0), m)
+    else:
+        im.paste(tuple(int(c) for c in fill), (0, 0), m)
+    return im
+
+
+@lru_cache(None)
+def bill_stack_sprite():
+    """Detailed stack of green US bills with a purple paper band (2x, downsampled)."""
+    S = 520
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    for k in range(6):
+        b = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        d = ImageDraw.Draw(b)
+        x0, y0 = 70, 150 - k * 12
+        d.rounded_rectangle([x0, y0, x0 + 380, y0 + 175], 12, fill=(64, 150, 74, 255), outline=(22, 70, 30, 255), width=5)
+        d.rounded_rectangle([x0 + 16, y0 + 14, x0 + 364, y0 + 161], 8, outline=(170, 230, 160, 255), width=3)
+        d.ellipse([x0 + 140, y0 + 35, x0 + 240, y0 + 140], fill=(120, 190, 120, 255), outline=(30, 90, 40, 255), width=4)
+        d.ellipse([x0 + 168, y0 + 55, x0 + 212, y0 + 99], fill=(60, 120, 64, 255))
+        d.pieslice([x0 + 155, y0 + 80, x0 + 225, y0 + 150], 180, 360, fill=(60, 120, 64, 255))
+        for cx_, cy_ in ((x0 + 45, y0 + 45), (x0 + 335, y0 + 130)):
+            d.ellipse([cx_ - 22, cy_ - 22, cx_ + 22, cy_ + 22], outline=(190, 240, 180, 255), width=3)
+            d.text((cx_, cy_), "$", font=font(F_ANTON, 30), anchor="mm", fill=(200, 245, 190, 255))
+        b = b.rotate(-8 + k * 2.2, Image.BICUBIC, center=(S / 2, S / 2 + 20))
+        im.alpha_composite(b)
+    d = ImageDraw.Draw(im)
+    d.rectangle([228, 60, 300, 360], fill=(140, 60, 230, 255), outline=(60, 10, 110, 255), width=5)
+    d.text((264, 210), "$", font=font(F_ANTON, 64), anchor="mm", fill=(240, 220, 255, 255))
+    return im.resize((260, 260), Image.LANCZOS)
+
+
+@lru_cache(64)
+def gta_money_text(txt):
+    return _outline_text(txt, 150, GTA_GREEN, stroke=12)
+
+
+@lru_cache(None)
+def purple_glow(w, h):
+    g = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(g).ellipse([120, 90, w - 120, h - 90], fill=255)
+    g = g.filter(ImageFilter.GaussianBlur(55))
+    im = Image.new("RGBA", (w, h), (140, 60, 255, 0))
+    im.putalpha(g.point(lambda v: int(v * 0.55)))
+    return im
+
+
+def draw_money_gta(canvas, e, age):
+    """GTA-style cash readout: bill stack + big green '$6,000' with black outline, purple glow, count-up."""
+    a = clamp(age / 0.1) * clamp((e["dur"] - age) / 0.3)
+    s = back_out(age / 0.5)
+    amount = int(round(e["amount"] * ease_out(clamp((age - 0.05) / 0.6)) / 100.0) * 100)
+    stack = bill_stack_sprite()
+    tv = gta_money_text(f"${amount:,}")
+    tfull = gta_money_text(f"${e['amount']:,}")
+    gw = stack.width - 50 + tfull.width
+    group = Image.new("RGBA", (gw, max(stack.height, tfull.height)), (0, 0, 0, 0))
+    group.alpha_composite(stack, (0, (group.height - stack.height) // 2))
+    group.alpha_composite(tv, (stack.width - 50, (group.height - tv.height) // 2))
+    if group.width > 960:
+        group = group.resize((960, int(group.height * 960 / group.width)), Image.LANCZOS)
+    cx, cy = W / 2, 520 + 5 * math.sin(age * 2.3)
+    paste_center(canvas, scaled(purple_glow(group.width + 200, group.height + 160), max(0.05, s)), cx, cy,
+                 a * (0.8 + 0.2 * math.sin(age * 4)))
+    paste_center(canvas, scaled(group, max(0.05, s)), cx, cy, a)
+    if age < 0.7:
+        draw_burst(canvas, cx, cy, age, n=24, seed=60, dist=300, dur=0.7, small=True)
+
+
+def _weapon(name):
+    """Detailed weapon silhouette (mask + detail mask) on a 900x340 canvas, facing right."""
+    Wd, Hd = 900, 340
+    m = Image.new("L", (Wd, Hd), 0)
+    det = Image.new("L", (Wd, Hd), 0)
+    d, dd = ImageDraw.Draw(m), ImageDraw.Draw(det)
+    if name == "rifle":                                   # carbine / assault rifle
+        d.polygon([(30, 118), (165, 108), (170, 122), (205, 122), (205, 160), (172, 160), (150, 200), (40, 214), (24, 200)], fill=255)
+        d.rectangle([200, 104, 470, 140], fill=255)                          # upper receiver
+        d.polygon([(205, 138), (470, 138), (470, 163), (425, 175), (262, 175), (215, 160)], fill=255)
+        d.rectangle([272, 66, 402, 94], fill=255)                            # optic
+        d.ellipse([392, 64, 418, 96], fill=255)
+        d.rectangle([292, 92, 318, 106], fill=255)
+        d.rectangle([356, 92, 382, 106], fill=255)
+        d.rectangle([465, 98, 705, 152], fill=255)                           # handguard
+        d.polygon([(640, 98), (655, 66), (672, 66), (676, 98)], fill=255)    # front sight
+        d.rectangle([700, 116, 830, 132], fill=255)                          # barrel
+        d.rectangle([822, 108, 872, 140], fill=255)                          # flash hider
+        d.polygon([(388, 170), (446, 170), (482, 300), (424, 314)], fill=255)    # curved magazine
+        d.polygon([(268, 170), (320, 170), (302, 266), (250, 258)], fill=255)    # pistol grip
+        d.line([(320, 172), (322, 204), (384, 204), (384, 172)], fill=255, width=9)  # trigger guard
+        dd.rectangle([330, 112, 392, 130], fill=255)                         # ejection port
+        for x in range(484, 690, 24):
+            dd.rounded_rectangle([x, 110, x + 12, 140], 4, fill=255)         # rail slots
+        for y in (200, 230, 260):
+            dd.line([(395 + (y - 170) * 0.25, y), (452 + (y - 170) * 0.28, y)], fill=255, width=5)
+        dd.line([(45, 150), (150, 140)], fill=255, width=5)
+        for x in range(830, 868, 12):
+            dd.line([(x, 112), (x, 136)], fill=255, width=3)
+    elif name == "smg":                                   # submachine gun / machine gun
+        d.rounded_rectangle([230, 104, 622, 156], 18, fill=255)              # receiver tube
+        d.polygon([(500, 150), (640, 150), (640, 176), (522, 184)], fill=255)    # handguard
+        d.rectangle([618, 118, 720, 140], fill=255)                          # barrel
+        d.rectangle([705, 110, 745, 148], fill=255)                          # muzzle
+        d.rectangle([596, 72, 632, 106], fill=255)                           # front sight hood
+        d.rectangle([248, 78, 292, 106], fill=255)                           # rear sight drum
+        d.polygon([(430, 152), (478, 152), (516, 302), (466, 314)], fill=255)    # curved magazine
+        d.polygon([(298, 152), (352, 152), (336, 262), (284, 255)], fill=255)    # grip
+        d.line([(352, 156), (354, 190), (420, 190), (420, 156)], fill=255, width=9)
+        d.rectangle([78, 108, 236, 124], fill=255)                           # retractable stock
+        d.rectangle([78, 140, 236, 154], fill=255)
+        d.rounded_rectangle([62, 96, 98, 172], 8, fill=255)
+        dd.rectangle([520, 92, 590, 102], fill=255)                          # cocking tube
+        for x in range(380, 500, 22):
+            dd.rectangle([x, 114, x + 10, 146], fill=255)
+        for y in (205, 235, 265):
+            dd.line([(442 + (y - 152) * 0.25, y), (488 + (y - 152) * 0.25, y)], fill=255, width=5)
+    else:                                                 # semi-automatic pistol
+        d.rounded_rectangle([226, 92, 664, 166], 14, fill=255)               # slide
+        d.polygon([(236, 160), (646, 160), (646, 186), (430, 192), (404, 204), (236, 200)], fill=255)
+        d.polygon([(248, 170), (382, 170), (352, 334), (214, 320)], fill=255)    # grip
+        d.rounded_rectangle([380, 176, 486, 248], 26, outline=255, width=12)     # trigger guard
+        d.line([(412, 190), (420, 230)], fill=255, width=10)                 # trigger
+        d.rectangle([632, 80, 650, 94], fill=255)                            # front sight
+        d.rectangle([246, 80, 276, 94], fill=255)                            # rear sight
+        for x in range(270, 400, 18):
+            dd.rectangle([x, 104, x + 8, 156], fill=255)                     # slide serrations
+        dd.rectangle([470, 110, 560, 132], fill=255)                         # ejection port
+        for y in range(200, 310, 22):
+            for x in range(236 - (y - 170) // 5, 360 - (y - 170) // 5, 22):
+                dd.ellipse([x, y, x + 8, y + 8], fill=255)                   # grip texture
+    return m, det
+
+
+@lru_cache(None)
+def weapon_card(name):
+    """Weapon-wheel style card: dark translucent rounded panel, purple/green rim, white detailed weapon."""
+    m, det = _weapon(name)
+    box = m.getbbox()
+    pad = 34
+    box = (max(0, box[0] - pad), max(0, box[1] - pad), min(m.width, box[2] + pad), min(m.height, box[3] + pad))
+    m, det = m.crop(box), det.crop(box)
+    wm = m.filter(ImageFilter.GaussianBlur(1))
+    Wd, Hd = m.size
+    card = Image.new("RGBA", (Wd + 80, Hd + 80), (0, 0, 0, 0))
+    rim = Image.new("L", card.size, 0)
+    ImageDraw.Draw(rim).rounded_rectangle([4, 4, card.width - 5, card.height - 5], 60, outline=255, width=10)
+    glow = Image.new("RGBA", card.size, (150, 70, 255, 0))
+    glow.putalpha(rim.filter(ImageFilter.GaussianBlur(14)))
+    card = Image.alpha_composite(card, glow)
+    d = ImageDraw.Draw(card)
+    d.rounded_rectangle([10, 10, card.width - 11, card.height - 11], 54, fill=(12, 8, 20, 190))
+    card.paste(gradient_img(card.width, card.height, GTA_PURPLE, GTA_GREEN, horizontal=True), (0, 0), rim)
+    # weapon: black outline, white body, grey detail, soft top-light gradient
+    out = m.filter(ImageFilter.MaxFilter(15))
+    blk = Image.new("RGBA", m.size, (0, 0, 0, 0))
+    blk.paste((0, 0, 0, 255), (0, 0), out)
+    body = Image.new("RGBA", m.size, (0, 0, 0, 0))
+    body.paste(gradient_img(Wd, Hd, np.array([255, 255, 255.]), np.array([170, 175, 190.])), (0, 0), wm)
+    grey = Image.new("RGBA", m.size, (0, 0, 0, 0))
+    grey.paste((90, 92, 105, 255), (0, 0), Image.fromarray(np.minimum(np.asarray(det), np.asarray(m))))
+    wpn = Image.alpha_composite(Image.alpha_composite(blk, body), grey)
+    card.alpha_composite(wpn, (40, 40))
+    return card.resize((card.width // 2, card.height // 2), Image.LANCZOS)
+
+
+def draw_weapons(canvas, e, t):
+    """One weapon, or a row of SMG / rifle / pistol cards revealed one by one as each is named."""
+    age = t - e["t"]
+    a = clamp(age / 0.12) * clamp((e["dur"] - age) / 0.3)
+    items = e["items"]
+    cards = [weapon_card(nm) for nm, _ in items]
+    gap = 14
+    natural = sum(c.width for c in cards) + gap * (len(cards) - 1)
+    scale = min(1.3, 1040 / natural)
+    widths = [c.width * scale for c in cards]
+    total = sum(widths) + gap * (len(cards) - 1)
+    y = 520 if len(cards) == 1 else 470
+    x = W / 2 - total / 2
+    for i, ((nm, ti), c, wd) in enumerate(zip(items, cards, widths)):
+        cx = x + wd / 2
+        x += wd + gap
+        ai = t - ti
+        if ai < 0:
+            continue
+        s = back_out(ai / 0.45) * scale
+        yy = y + 6 * math.sin(t * 2.2 + i)
+        paste_center(canvas, scaled(c, max(0.05, s)), cx, yy, a)
+        if ai < 0.5:
+            draw_burst(canvas, cx, yy, ai, n=12, seed=i + 3, dist=150, dur=0.5, small=True)
+
+
+# --------------------------------------------------------------- intro title "GTA 6"
+@lru_cache(None)
+def title_sprite(green_safe=False):
+    """'GTA 6' in a bold GTA-inspired treatment: white GTA, purple->green 6, heavy black outline.
+    green_safe=True drops the soft shadow/glow so a chroma key cuts it cleanly."""
+    g = _outline_text("GTA", 330, (255, 255, 255), stroke=18, shadow=not green_safe)
+    six = _outline_text("6", 400, None, stroke=20, shadow=not green_safe, grad=(GTA_PURPLE, np.array([255, 80, 200.])))
+    w = g.width + six.width - 70
+    h = max(g.height, six.height)
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    if not green_safe:
+        gl = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(gl).ellipse([60, 60, w - 60, h - 60], fill=255)
+        glow = Image.new("RGBA", (w, h), (150, 70, 255, 0))
+        glow.putalpha(gl.filter(ImageFilter.GaussianBlur(70)).point(lambda v: int(v * 0.55)))
+        im.alpha_composite(glow)
+    im.alpha_composite(g, (0, (h - g.height) // 2 + 20))
+    im.alpha_composite(six, (g.width - 70, (h - six.height) // 2))
+    return im
+
+
+def _shine(sprite, k):
+    w, h = sprite.size
+    band = Image.new("L", (w, h), 0)
+    x = -w * 0.3 + k * w * 1.6
+    ImageDraw.Draw(band).polygon([(x, 0), (x + 90, 0), (x - 60, h), (x - 150, h)], fill=200)
+    band = band.filter(ImageFilter.GaussianBlur(10))
+    band = Image.fromarray(np.minimum(np.asarray(band), np.asarray(sprite.getchannel("A"))))
+    white = Image.new("RGBA", (w, h), (255, 255, 255, 0))
+    white.putalpha(band)
+    return Image.alpha_composite(sprite, white)
+
+
+def draw_title(canvas, age, dur, green_safe=False, cy=560):
+    sp = title_sprite(green_safe)
+    if age < 0.3:
+        s = 1.9 - 0.9 * ease_out(age / 0.3)
+    else:
+        s = 1.0 + 0.04 * ease_out(clamp((age - 0.3) / (dur - 0.3)))
+    out = clamp((age - (dur - 0.3)) / 0.3)
+    a = clamp(age / 0.12) * (1 - out)
+    if 0.35 < age < 1.15 and not green_safe:
+        sp = _shine(sp, (age - 0.35) / 0.8)
+    shake = 10 * math.sin(age * 70) * max(0, 1 - (age - 0.3) / 0.25) if age > 0.3 else 0
+    paste_center(canvas, scaled(sp, max(0.05, s * (1 - 0.25 * out))), W / 2 + shake, cy, a)
+    if not green_safe and 0.28 < age < 0.95:
+        draw_burst(canvas, W / 2, cy, age - 0.28, n=30, seed=66, dist=460, dur=0.67)
 
 @lru_cache(None)
 def num_badge_sprite(n):
