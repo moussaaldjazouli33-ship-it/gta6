@@ -106,7 +106,6 @@ def _fx():
     def icon(word, name, after=0.0, dur=2.0):
         fx.append(dict(t=at(word, after), kind="icon", dur=dur, name=name))
 
-    fx.append(dict(t=0.0, kind="title", dur=2.3))                         # "GTA 6" intro
     fx.append(dict(t=at("weapons", 3) - 0.05, kind="weapons", dur=1.25,
                    items=[("rifle", at("weapons", 3) - 0.05)]))
     icon("warehouse", "pin", 6, 1.6)

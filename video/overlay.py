@@ -592,6 +592,8 @@ def render_overlay(t):
     draw_ambient(canvas, t)
     if STYLE not in ("p3", "gta"):
         draw_minimap(canvas, t)
+    if STYLE == "gta":
+        draw_user_logo(canvas, t)
 
     # counter
     if seg["counter"] is not None:
@@ -852,9 +854,9 @@ def draw_money_gta(canvas, e, age):
     group = Image.new("RGBA", (gw, max(stack.height, tfull.height)), (0, 0, 0, 0))
     group.alpha_composite(stack, (0, (group.height - stack.height) // 2))
     group.alpha_composite(tv, (stack.width - 50, (group.height - tv.height) // 2))
-    if group.width > 960:
-        group = group.resize((960, int(group.height * 960 / group.width)), Image.LANCZOS)
-    cx, cy = W / 2, 520 + 5 * math.sin(age * 2.3)
+    if group.width > 600:
+        group = group.resize((600, int(group.height * 600 / group.width)), Image.LANCZOS)
+    cx, cy = 40 + group.width / 2, 640 + 5 * math.sin(age * 2.3)     # left side, medium
     paste_center(canvas, scaled(purple_glow(group.width + 200, group.height + 160), max(0.05, s)), cx, cy,
                  a * (0.8 + 0.2 * math.sin(age * 4)))
     paste_center(canvas, scaled(group, max(0.05, s)), cx, cy, a)
@@ -959,29 +961,47 @@ def weapon_card(name):
 
 
 def draw_weapons(canvas, e, t):
-    """One weapon, or a row of SMG / rifle / pistol cards revealed one by one as each is named."""
+    """Weapon cards stacked on the right side, each popping in as it is named."""
     age = t - e["t"]
     a = clamp(age / 0.12) * clamp((e["dur"] - age) / 0.3)
     items = e["items"]
     cards = [weapon_card(nm) for nm, _ in items]
-    gap = 14
-    natural = sum(c.width for c in cards) + gap * (len(cards) - 1)
-    scale = min(1.3, 1040 / natural)
-    widths = [c.width * scale for c in cards]
-    total = sum(widths) + gap * (len(cards) - 1)
-    y = 520 if len(cards) == 1 else 470
-    x = W / 2 - total / 2
-    for i, ((nm, ti), c, wd) in enumerate(zip(items, cards, widths)):
-        cx = x + wd / 2
-        x += wd + gap
+    th = 128                                               # equal card height on screen (medium)
+    gap = 18
+    tws = [min(390, c.width * th / c.height) for c in cards]
+    hs = [c.height * w_ / c.width for c, w_ in zip(cards, tws)]
+    total = sum(hs) + gap * (len(cards) - 1)
+    y = 700 - total / 2
+    for i, ((nm, ti), c, hh, tw) in enumerate(zip(items, cards, hs, tws)):
+        cy = y + hh / 2
+        y += hh + gap
         ai = t - ti
         if ai < 0:
             continue
-        s = back_out(ai / 0.45) * scale
-        yy = y + 6 * math.sin(t * 2.2 + i)
-        paste_center(canvas, scaled(c, max(0.05, s)), cx, yy, a)
+        s = back_out(ai / 0.45) * tw / c.width
+        cx = W - 30 - tw / 2 + 4 * math.sin(t * 2.0 + i)
+        paste_center(canvas, scaled(c, max(0.05, s)), cx, cy, a)
         if ai < 0.5:
-            draw_burst(canvas, cx, yy, ai, n=12, seed=i + 3, dist=150, dur=0.5, small=True)
+            draw_burst(canvas, cx, cy, ai, n=12, seed=i + 3, dist=150, dur=0.5, small=True)
+
+
+@lru_cache(None)
+def user_logo(width=400):
+    p = os.path.join(ROOT, "footage", "gta6_logo_alpha.png")
+    if not os.path.exists(p):
+        return None
+    im = Image.open(p).convert("RGBA")
+    return im.resize((width, int(im.height * width / im.width)), Image.LANCZOS)
+
+
+def draw_user_logo(canvas, t):
+    """The user's own GTA VI logo, top centre, medium size; pops in at the start, then stays."""
+    lg = user_logo()
+    if lg is None:
+        return
+    s = back_out(t / 0.6) if t < 0.6 else 1.0
+    a = clamp(t / 0.15)
+    paste_center(canvas, scaled(lg, max(0.05, s)), W / 2, 70 + lg.height / 2, a)
 
 
 # --------------------------------------------------------------- intro title "GTA 6"
