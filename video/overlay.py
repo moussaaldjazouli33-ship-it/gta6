@@ -986,7 +986,7 @@ def draw_weapons(canvas, e, t):
 
 
 @lru_cache(None)
-def user_logo(width=400):
+def user_logo(width=150):          # ~14 % of the 1080 px width
     p = os.path.join(ROOT, "footage", "gta6_logo_alpha.png")
     if not os.path.exists(p):
         return None
@@ -994,7 +994,7 @@ def user_logo(width=400):
     return im.resize((width, int(im.height * width / im.width)), Image.LANCZOS)
 
 
-LOGO_FROM = 2.25          # after the intro logo
+LOGO_FROM = 0.0           # corner logo shown for the whole video
 
 
 def draw_user_logo(canvas, t):
@@ -1005,7 +1005,8 @@ def draw_user_logo(canvas, t):
     u = t - LOGO_FROM
     s = back_out(u / 0.6) if u < 0.6 else 1.0
     a = clamp(u / 0.15)
-    paste_center(canvas, scaled(lg, max(0.05, s)), W / 2, 70 + lg.height / 2, a)
+    m = 34                                                 # margin from the top / right edges
+    paste_center(canvas, scaled(lg, max(0.05, s)), W - m - lg.width / 2, m + 22 + lg.height / 2, a)
 
 
 # --------------------------------------------------------------- intro title "GTA 6"
