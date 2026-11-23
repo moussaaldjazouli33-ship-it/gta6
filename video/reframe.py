@@ -206,7 +206,7 @@ def render(path, start, n, cam, punch, out_path, cx=0.5, w=0.32, subsafe=False, 
     return 1.0 if path_x is not None else 0.0
 
 
-def render_vertical(path, start, n, cam, punch, out_path, flip=False, croptop=0.0):
+def render_vertical(path, start, n, cam, punch, out_path, flip=False, croptop=0.0, notext=False):
     """User's own vertical 1080x1920 clips: remove burned-in text, then the same gentle camera moves."""
     import clean_text
     raw = subprocess.check_output(["ffmpeg", "-loglevel", "error", "-ss", f"{start}", "-i", path, "-frames:v", str(n),
@@ -219,7 +219,7 @@ def render_vertical(path, start, n, cam, punch, out_path, flip=False, croptop=0.
                             "-r", str(FPS), "-i", "-", "-vf", "eq=contrast=1.04:saturation=1.08,format=yuv420p",
                             "-c:v", "libx264", "-preset", "medium", "-crf", "15", out_path], stdin=subprocess.PIPE)
     for i in range(n):
-        img = clean_text.clean(frames[i])
+        img = frames[i] if notext else clean_text.clean(frames[i])
         im = Image.fromarray(img)
         if flip:
             im = im.transpose(Image.FLIP_LEFT_RIGHT)

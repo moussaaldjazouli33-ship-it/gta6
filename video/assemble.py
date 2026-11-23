@@ -79,7 +79,7 @@ def render_shot(shot, dur, punch, tmp):
     if shot.get("vertical_clean"):              # user's own vertical clips: text removal + camera move
         import reframe
         reframe.render_vertical(path, shot["src_in"], n, shot["cam"], punch, out, flip=shot.get("flip", False),
-                                croptop=shot.get("croptop", 0.0))
+                                croptop=shot.get("croptop", 0.0), notext=shot.get("notext", False))
         print(f"  {shot['id']}: {shot['src']}@{shot['src_in']:.2f}s  cleaned", flush=True)
         return out
     if shot.get("reframe"):                     # 16:9 source -> tracked 9:16 crop

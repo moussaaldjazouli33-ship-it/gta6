@@ -272,6 +272,17 @@ def icon_sprite(name):
         d.ellipse([c - 75, c - 5, c + 75, c + 120], fill=W_)
         for sx, sy, r in ((-105, -40, 34), (-45, -110, 36), (45, -110, 36), (105, -40, 34)):
             d.ellipse([c + sx - r, c + sy - r, c + sx + r, c + sy + r], fill=W_)
+    elif name == "bag":
+        d.rounded_rectangle([c - 130, c - 50, c + 130, c + 90], 50, fill=O)
+        d.rectangle([c - 130, c - 5, c + 130, c + 10], fill=(150, 70, 10))
+        d.arc([c - 60, c - 120, c + 60, c - 10], 180, 360, fill=W_, width=16)
+        d.rectangle([c - 30, c + 25, c + 30, c + 55], fill=Y)
+    elif name == "coke":
+        d.polygon([(c - 100, c - 70), (c + 100, c - 70), (c + 115, c + 110), (c - 115, c + 110)], fill=(235, 235, 240))
+        d.rectangle([c - 100, c - 100, c + 100, c - 70], fill=(180, 180, 195))
+        for dx, dy in ((-40, 20), (25, 40), (-5, 75), (55, 85), (-65, 80)):
+            d.ellipse([c + dx - 12, c + dy - 12, c + dx + 12, c + dy + 12], fill=W_)
+        d.line([(c - 100, c - 70), (c + 100, c - 70)], fill=P, width=8)
     return im.resize((S, S), Image.LANCZOS)
 
 

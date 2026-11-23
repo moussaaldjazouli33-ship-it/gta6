@@ -285,9 +285,14 @@ def build_music(total):
     K, C, Ho, Hc = kick(), clap(), hat(True), hat(False)
 
     # sections: (start, end, drums_on, filter_closed)
-    drums_from = next(s for s in SEGMENTS if s["counter"] is not None)["start"]   # beat drops on the title
-    f10 = max((s for s in SEGMENTS if s["counter"]), key=lambda s: (s["counter"], -s["start"]))
-    break_start, break_end = f10["start"] - 1.0, f10["start"]     # silence-ish before #10
+    counted = [s for s in SEGMENTS if s["counter"]]
+    drums_from = next((s["start"] for s in SEGMENTS if s["counter"] is not None), SEGMENTS[1]["start"])
+    if counted:
+        f10 = max(counted, key=lambda s: (s["counter"], -s["start"]))
+        break_start, break_end = f10["start"] - 1.0, f10["start"]     # silence-ish before the last item
+    else:
+        drop = next((s for s in SEGMENTS if s.get("drop")), None)
+        break_start, break_end = (drop["start"] - 1.0, drop["start"]) if drop else (-9, -9)
     end_fade = total - 2.0
 
     n_beats = int(total / BEAT) + 2
